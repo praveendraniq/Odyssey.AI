@@ -141,6 +141,8 @@ export class DemoStore {
 
   getTrip(): Trip { return structuredClone(this.trip); }
 
+  hydrate(trip: Trip): void { this.trip = structuredClone(trip); }
+
   applyPreferenceCollection(collection: PreferenceCollection): Trip {
     this.trip.preferenceCollection = { ...collection, status: 'pending' };
     this.trip.groupPreference = {
@@ -205,7 +207,13 @@ export class DemoStore {
         closed: { title: 'Attraction closed', explanation: `JourneyOS replaced the unavailable ${this.trip.request.destination} stop with a nearby option that matches the group’s interests.` },
         tired: { title: 'Traveler energy is low', explanation: `JourneyOS reduced walking in ${this.trip.request.destination} while preserving one meaningful group highlight.` },
       };
-      if (next) Object.assign(next, { time: type === 'late' || type === 'flight-delay' ? '16:00' : next.time, durationMins: type === 'tired' ? Math.min(next.durationMins, 60) : next.durationMins, status: 'moved' as const });
+      if (next) {
+        if (type === 'late') Object.assign(next, { time: '20:00', title: `Later ${next.title}`, status: 'moved' as const });
+        else if (type === 'flight-delay') Object.assign(next, { time: '19:00', title: 'Late-arrival welcome stop', durationMins: Math.min(next.durationMins, 60), status: 'moved' as const });
+        else if (type === 'rain') Object.assign(next, { title: 'Indoor cultural alternative', subtitle: `Central ${this.trip.request.destination}`, category: 'museum' as const, weatherSensitive: false, status: 'moved' as const });
+        else if (type === 'closed') Object.assign(next, { title: 'Nearby priority-matched replacement', subtitle: `Central ${this.trip.request.destination}`, category: 'experience' as const, status: 'moved' as const });
+        else Object.assign(next, { title: `Shortened ${next.title}`, durationMins: Math.min(next.durationMins, 60), travelMins: Math.min(next.travelMins, 20), status: 'moved' as const });
+      }
       const update = updates[type];
       this.trip.events.unshift({ id: `event-${Date.now()}`, type, title: update.title, createdAt: new Date().toISOString(), explanation: update.explanation });
       return this.getTrip();

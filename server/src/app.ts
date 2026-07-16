@@ -12,11 +12,11 @@ import { SabreService } from './services/sabre.service.js';
 import { VocalBridgeService } from './services/voice-planner.service.js';
 import type { PaymentOrder, TripEvent } from './types.js';
 
-const replanSchema = z.object({ type: z.enum(['late', 'rain', 'flight-delay', 'closed', 'tired']) });
+const replanSchema = z.object({ type: z.enum(['late', 'rain', 'flight-delay', 'closed', 'tired']), trip: z.unknown().optional() });
 const requestSchema = z.object({ conversation: z.string().min(3).max(1000) });
 const preferenceCollectionSchema = z.object({ adminName: z.string().min(2).max(60), adminPhone: z.string().min(7).max(30), phones: z.record(z.string(), z.string().min(7).max(30)) });
 const preferenceDecisionSchema = z.object({ interestScores: z.record(z.string(), z.number().min(1).max(5)) });
-const selectionSchema = z.object({ id: z.string().min(1) });
+const selectionSchema = z.object({ id: z.string().min(1), trip: z.unknown().optional() });
 const receiptSchema = z.object({ amount: z.number().positive().optional(), restaurant: z.string().min(1).optional(), fileName: z.string().optional() });
 const orderSchema = z.object({ percentages: z.record(z.string(), z.number().min(0).max(100)).optional() }).superRefine((value, ctx) => { if (value.percentages && Math.abs(Object.values(value.percentages).reduce((sum, item) => sum + item, 0) - 100) > 0.01) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Custom split must total 100%' }); });
 
@@ -76,11 +76,11 @@ export const createApp = () => {
     catch (error) { next(error); }
   });
   app.post('/api/bookings/flight', (req, res, next) => {
-    try { res.json({ trip: store.selectFlight(selectionSchema.parse(req.body).id) }); }
+    try { const input = selectionSchema.parse(req.body); if (input.trip) store.hydrate(input.trip as ReturnType<typeof store.getTrip>); res.json({ trip: store.selectFlight(input.id) }); }
     catch (error) { next(error); }
   });
   app.post('/api/bookings/hotel', (req, res, next) => {
-    try { res.json({ trip: store.selectHotel(selectionSchema.parse(req.body).id) }); }
+    try { const input = selectionSchema.parse(req.body); if (input.trip) store.hydrate(input.trip as ReturnType<typeof store.getTrip>); res.json({ trip: store.selectHotel(input.id) }); }
     catch (error) { next(error); }
   });
 
@@ -91,7 +91,8 @@ export const createApp = () => {
 
   app.post('/api/operations/replan', (req, res, next) => {
     try {
-      const { type } = replanSchema.parse(req.body);
+      const { type, trip: clientTrip } = replanSchema.parse(req.body);
+      if (clientTrip) store.hydrate(clientTrip as ReturnType<typeof store.getTrip>);
       const trip = store.replan(type as TripEvent['type']);
       res.json({ trip, event: trip.events[0], itinerary: routeOptimizer.optimize(trip.itinerary, { raining: type === 'rain' }) });
     } catch (error) { next(error); }
