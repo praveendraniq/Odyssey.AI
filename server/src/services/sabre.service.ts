@@ -42,9 +42,14 @@ export class SabreService {
   }
 
   private async createToken(): Promise<string> {
+    // Sabre OAuth v2 expects each credential to be Base64 encoded before the
+    // combined client-id:client-secret value is encoded for HTTP Basic auth.
+    const clientId = Buffer.from(String(config.sabre.clientId), 'utf8').toString('base64');
+    const clientSecret = Buffer.from(String(config.sabre.clientSecret), 'utf8').toString('base64');
+    const basicAuth = Buffer.from(`${clientId}:${clientSecret}`, 'utf8').toString('base64');
     const response = await fetch(`${config.sabre.baseUrl}/${config.sabre.oauthVersion}/auth/token`, {
       method: 'POST',
-      headers: { Authorization: `Basic ${Buffer.from(`${config.sabre.clientId}:${config.sabre.clientSecret}`).toString('base64')}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+      headers: { Authorization: `Basic ${basicAuth}`, 'Content-Type': 'application/x-www-form-urlencoded' },
       body: 'grant_type=client_credentials',
     });
     if (!response.ok) throw new Error(`Sabre authorization returned ${response.status}`);

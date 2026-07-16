@@ -78,7 +78,7 @@ The checked-in configuration enables Vocal Bridge **AI agent integration mode**.
 
 - `SabreService` requests Sabre OAuth and normalizes flight and hotel results.
 - Sabre hackathon test requests use `https://api-crt.cert.havail.sabre.com` and PCC `S5OM` (uppercase letter `O`) through `SABRE_PCC`; Sabre APIs with a `POS.Source` payload must send it as `PseudoCityCode`.
-- The sandbox adapter uses OAuth v2: it exchanges `SABRE_CLIENT_ID` and `SABRE_CLIENT_SECRET` server-side, caches the bearer token with expiry metadata, and renews it one minute before expiry. Do not save a temporary `access_token` in `.env`.
+- The sandbox adapter uses OAuth v2: it applies Sabre's required credential encoding server-side, exchanges `SABRE_CLIENT_ID` and `SABRE_CLIENT_SECRET` for a bearer token, caches expiry metadata, and renews it one minute before expiry. Do not save a temporary `access_token` in `.env`.
 - `PayPalService` uses PayPal Orders APIs when credentials are present; otherwise it creates a mock order that can be captured by the demo UI.
 - `POST /api/voice-token` securely exchanges the server-side Vocal Bridge key for a short-lived browser session token.
 - `POST /api/agents/query` lets Vocal Bridge's AI agent integration mode call the Journey Orchestrator over the web-session data channel.
