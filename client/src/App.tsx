@@ -113,22 +113,38 @@ function TripOverview({ trip, setPage, activeDay, setActiveDay, onReceipt }: { t
 }
 
 function VoicePlanner({ trip, onTrip }: { trip: Trip; onTrip: (trip: Trip, note: string) => void }) {
-  const [conversation, setConversation] = useState('Plan a 5-day Japan trip for four people under $6,000. We love temples, food, history, and photography.');
+  const sampleVoiceCommand = 'Plan a 5-day Japan trip for four people under $6,000. We love temples, food, history, and photography.';
+  const [conversation, setConversation] = useState(sampleVoiceCommand);
   const [listening, setListening] = useState(false);
   const [speechStatus, setSpeechStatus] = useState('Tap the microphone and allow access when your browser asks.');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{ confidence: number; source: string; summary: string } | null>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const mockVoiceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const speechSupported = typeof window !== 'undefined' && Boolean(window.SpeechRecognition || window.webkitSpeechRecognition);
 
   const startListening = () => {
     if (listening) {
-      recognitionRef.current?.stop();
+      if (recognitionRef.current) recognitionRef.current.stop();
+      if (mockVoiceTimeoutRef.current) {
+        clearTimeout(mockVoiceTimeoutRef.current);
+        mockVoiceTimeoutRef.current = null;
+        setListening(false);
+        setSpeechStatus('Mock voice capture stopped. Tap again whenever you are ready.');
+      }
       return;
     }
     const Recognition = window.SpeechRecognition ?? window.webkitSpeechRecognition;
     if (!Recognition) {
-      setSpeechStatus('Live speech recognition is unavailable here. Try Chrome or Edge, or type the request.');
+      setConversation('');
+      setListening(true);
+      setSpeechStatus('This preview has no microphone API, so JourneyOS is simulating a voice command…');
+      mockVoiceTimeoutRef.current = setTimeout(() => {
+        setConversation(sampleVoiceCommand);
+        setListening(false);
+        setSpeechStatus('Mock voice captured. Review the transcript, then create the trip brief.');
+        mockVoiceTimeoutRef.current = null;
+      }, 900);
       return;
     }
     const recognition = new Recognition();
@@ -161,9 +177,18 @@ function VoicePlanner({ trip, onTrip }: { trip: Trip; onTrip: (trip: Trip, note:
       setListening(false);
       recognitionRef.current = null;
     };
-    recognition.start();
+    try {
+      recognition.start();
+    } catch {
+      recognitionRef.current = null;
+      setListening(false);
+      setSpeechStatus('The browser could not start voice capture. Check microphone permission, then try again.');
+    }
   };
-  useEffect(() => () => recognitionRef.current?.abort(), []);
+  useEffect(() => () => {
+    recognitionRef.current?.abort();
+    if (mockVoiceTimeoutRef.current) clearTimeout(mockVoiceTimeoutRef.current);
+  }, []);
   const createPlan = async () => {
     setLoading(true);
     try {
@@ -175,7 +200,7 @@ function VoicePlanner({ trip, onTrip }: { trip: Trip; onTrip: (trip: Trip, note:
   };
   const extracted = result ? trip.request : trip.request;
   return <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
-    <section className="relative overflow-hidden rounded-[32px] bg-[#eff6f1] px-6 py-8 sm:px-10"><div className="relative z-10"><p className="eyebrow text-moss">Live voice capture</p><h1 className="mt-2 font-display text-4xl leading-[0.95] text-ink sm:text-5xl">Tell us where the story goes.</h1><p className="mt-4 max-w-md text-sm leading-6 text-stone-600">Speak naturally. JourneyOS turns a loose travel wish into a structured brief your whole group can review.</p><div className="mt-8 flex flex-col items-center"><button type="button" onClick={startListening} aria-pressed={listening} aria-label={listening ? 'Stop listening' : 'Start voice capture'} className={`grid h-36 w-36 place-items-center rounded-full border-[10px] border-white shadow-xl transition ${listening ? 'bg-coral text-white animate-pulse' : 'bg-moss text-white hover:scale-105'}`}><Mic size={42} /></button><p className="mt-4 text-sm font-bold text-ink">{listening ? 'Listening… tap to stop' : 'Tap to start a voice brief'}</p><p className={`mt-2 max-w-sm text-center text-xs leading-5 ${speechSupported ? 'text-stone-500' : 'font-semibold text-coral'}`}>{speechStatus}</p><p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-moss/60">Browser speech recognition · Vocal Bridge ready</p></div></div><div className="absolute -bottom-12 -right-12 h-60 w-60 rounded-full border-[24px] border-[#d3e8d8]" /></section>
+    <section className="relative overflow-hidden rounded-[32px] bg-[#eff6f1] px-6 py-8 sm:px-10"><div className="relative z-10"><p className="eyebrow text-moss">Live voice capture</p><h1 className="mt-2 font-display text-4xl leading-[0.95] text-ink sm:text-5xl">Tell us where the story goes.</h1><p className="mt-4 max-w-md text-sm leading-6 text-stone-600">Speak naturally. JourneyOS turns a loose travel wish into a structured brief your whole group can review.</p><div className="mt-8 flex flex-col items-center"><button type="button" onClick={startListening} aria-pressed={listening} aria-label={listening ? 'Stop listening' : speechSupported ? 'Start voice capture' : 'Run mock voice capture'} className={`grid h-36 w-36 place-items-center rounded-full border-[10px] border-white shadow-xl transition ${listening ? 'bg-coral text-white animate-pulse' : 'bg-moss text-white hover:scale-105'}`}><Mic size={42} /></button><p className="mt-4 text-sm font-bold text-ink">{listening ? 'Listening… tap to stop' : speechSupported ? 'Tap to start a voice brief' : 'Run a mock voice command'}</p><p className={`mt-2 max-w-sm text-center text-xs leading-5 ${speechSupported ? 'text-stone-500' : 'font-semibold text-coral'}`}>{speechStatus}</p><p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-moss/60">{speechSupported ? 'Browser speech recognition · Vocal Bridge ready' : 'Mock voice fallback · microphone API unavailable here'}</p></div></div><div className="absolute -bottom-12 -right-12 h-60 w-60 rounded-full border-[24px] border-[#d3e8d8]" /></section>
     <section className="rounded-[32px] border border-stone-200 bg-white p-6 sm:p-8"><div className="flex items-center justify-between"><div><p className="eyebrow">Conversation transcript</p><h2 className="mt-1 text-xl font-bold text-ink">Your travel brief</h2></div><Headphones className="text-moss" /></div><label className="sr-only" htmlFor="trip-conversation">Trip request</label><textarea id="trip-conversation" value={conversation} onChange={(event) => setConversation(event.target.value)} className="mt-5 min-h-36 w-full resize-none rounded-2xl border border-stone-200 bg-stone-50 p-4 text-sm leading-6 text-ink outline-none transition focus:border-moss focus:ring-4 focus:ring-moss/10" /><button onClick={() => void createPlan()} disabled={loading} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-ink px-4 py-3.5 text-sm font-bold text-white transition hover:bg-moss disabled:cursor-wait disabled:opacity-70"><Sparkles size={17} />{loading ? 'Understanding your trip…' : 'Create my trip brief'}</button>{result && <p className="mt-3 text-center text-xs font-semibold text-moss">{result.source === 'mock' ? 'Demo extraction' : 'Vocal Bridge extraction'} · {Math.round(result.confidence * 100)}% confidence</p>}</section>
     <section className="rounded-[32px] border border-stone-200 bg-white p-6 xl:col-span-2"><div className="flex flex-wrap items-end justify-between gap-4"><div><p className="eyebrow">Structured output</p><h2 className="mt-1 text-xl font-bold text-ink">The AI heard the important things.</h2></div><span className="rounded-full bg-[#eff6f1] px-3 py-1.5 text-xs font-bold text-moss">{extracted.travelStyle}</span></div><div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><div className="soft-stat"><span>Destination</span><strong>{extracted.destination}</strong></div><div className="soft-stat"><span>Time together</span><strong>{extracted.duration} days</strong></div><div className="soft-stat"><span>Group size</span><strong>{extracted.travelers} travelers</strong></div><div className="soft-stat"><span>Shared budget</span><strong>{money(extracted.budget)}</strong></div></div><div className="mt-5 flex flex-wrap gap-2">{extracted.interests.map((interest) => <span className="rounded-full bg-sand px-3 py-1.5 text-xs font-bold capitalize text-ink" key={interest}>{interest}</span>)}{extracted.foodPreferences.map((food) => <span className="rounded-full bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-700" key={food}>{food}</span>)}</div></section>
   </div>;
