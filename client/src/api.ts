@@ -11,6 +11,7 @@ export const api = {
   getDemo: () => request<{ trip: Trip }>('/api/trips/demo'),
   extractPlan: (conversation: string) => request<{ request: TripRequest; source: string; confidence: number; summary: string; itinerarySource: 'google-places' | 'curated-fallback'; placesDiagnostic?: string; trip: Trip }>('/api/planner/extract', { method: 'POST', body: JSON.stringify({ conversation }) }),
   collectPreferences: (adminName: string, adminPhone: string, phones: Record<string, string>) => request<{ collection: PreferenceCollection; trip: Trip }>('/api/planner/collect-preferences', { method: 'POST', body: JSON.stringify({ adminName, adminPhone, phones }) }),
+  approvePreferences: (interestScores: Trip['groupPreference']['interestScores']) => request<{ trip: Trip }>('/api/planner/approve-preferences', { method: 'POST', body: JSON.stringify({ interestScores }) }),
   selectFlight: (id: string) => request<{ trip: Trip }>('/api/bookings/flight', { method: 'POST', body: JSON.stringify({ id }) }),
   selectHotel: (id: string) => request<{ trip: Trip }>('/api/bookings/hotel', { method: 'POST', body: JSON.stringify({ id }) }),
   replan: (type: ReplanType) => request<{ trip: Trip; event: Trip['events'][number] }>('/api/operations/replan', { method: 'POST', body: JSON.stringify({ type }) }),

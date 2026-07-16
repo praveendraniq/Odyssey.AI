@@ -6,7 +6,7 @@ export interface TripRequest { destination: string; duration: number; travelers:
 export interface Traveler { id: string; name: string; initials: string; budgetPreference: string; activityLevel: number; pacePreference: string; foodPreference: string; interests: Record<Interest, number>; }
 export interface GroupPreference { interestScores: Record<Interest, number>; recommendedPace: string; explanation: string; }
 export interface PreferenceCall { travelerId: string; name: string; phone: string; status: 'completed' | 'queued'; summary: string; happiness: number; topPriorities: string[]; compromise: string; }
-export interface PreferenceCollection { adminName: string; adminWeight: number; source: 'mock' | 'vocal-bridge'; calls: PreferenceCall[]; negotiation: string; approvalSummary: string; }
+export interface PreferenceCollection { adminName: string; adminWeight: number; source: 'mock' | 'vocal-bridge'; calls: PreferenceCall[]; negotiation: string; approvalSummary: string; status?: 'pending' | 'approved'; }
 export interface Flight { id: string; airline: string; code: string; departure: string; arrival: string; departureTime: string; arrivalTime: string; price: number; duration: string; stops: number; selected?: boolean; }
 export interface Hotel { id: string; name: string; location: string; rating: number; price: number; totalPrice: number; image: string; amenities: string[]; selected?: boolean; }
 export interface ItineraryItem { id: string; day: number; time: string; title: string; subtitle: string; category: ItemCategory; durationMins: number; travelMins: number; location: { x: number; y: number }; status: 'completed' | 'current' | 'upcoming' | 'moved'; weatherSensitive?: boolean; openingHours: string; }

@@ -64,6 +64,16 @@ const itineraryFor = (destination: string, duration: number): ItineraryItem[] =>
     route('india-palace', 4, '15:30', 'Amber Fort', 'Jaipur · India', 'culture', 105, 35, 32, 42, 'upcoming', true),
     route('india-farewell', 5, '18:00', 'Farewell dinner', 'Jaipur · India', 'food', 100, 25, 60, 70, 'upcoming'),
   ].filter((item) => item.day <= duration);
+  if (place.includes('thailand') || place.includes('bangkok')) return [
+    route('thai-arrival', 1, '10:00', 'Grand Palace & Wat Phra Kaew', 'Grand Palace, Bangkok, Thailand', 'culture', 24, 46, 72, 46, 'current', true),
+    route('thai-watpho', 1, '13:00', 'Wat Pho & Reclining Buddha', 'Wat Pho, Bangkok, Thailand', 'culture', 54, 58, 88, 32, 'upcoming'),
+    route('thai-river', 1, '18:00', 'Chao Phraya sunset ferry', 'Tha Maharaj, Bangkok, Thailand', 'experience', 72, 73, 78, 20, 'upcoming'),
+    route('thai-market', 2, '09:00', 'Damnoen Saduak floating market', 'Damnoen Saduak Floating Market, Ratchaburi, Thailand', 'experience', 28, 52, 100, 70, 'upcoming'),
+    route('thai-ayutthaya', 2, '14:30', 'Ayutthaya temple ruins', 'Wat Mahathat, Ayutthaya, Thailand', 'culture', 55, 63, 95, 42, 'upcoming', true),
+    route('thai-chinatown', 2, '19:00', 'Yaowarat street-food walk', 'Yaowarat Road, Bangkok, Thailand', 'food', 74, 76, 80, 55, 'upcoming'),
+    route('thai-jimthompson', 3, '10:00', 'Jim Thompson House', 'Jim Thompson House Museum, Bangkok, Thailand', 'museum', 42, 48, 85, 35, 'upcoming'),
+    route('thai-lumpini', 3, '16:00', 'Lumphini Park & local dinner', 'Lumphini Park, Bangkok, Thailand', 'nature', 63, 60, 76, 28, 'upcoming', true),
+  ].filter((item) => item.day <= duration);
   return [
     route('arrival', 1, '14:00', `Arrive in ${destination}`, `${destination}`, 'transport', 20, 45, 75, 50, 'current'),
     route('welcome', 1, '18:00', 'Neighborhood welcome dinner', `${destination}`, 'food', 55, 58, 75, 90, 'upcoming'),
@@ -132,13 +142,31 @@ export class DemoStore {
   getTrip(): Trip { return structuredClone(this.trip); }
 
   applyPreferenceCollection(collection: PreferenceCollection): Trip {
-    this.trip.preferenceCollection = collection;
+    this.trip.preferenceCollection = { ...collection, status: 'pending' };
     this.trip.groupPreference = {
       ...this.trip.groupPreference,
       recommendedPace: 'Admin-led balanced discovery',
       explanation: `${collection.adminName}'s priorities receive a 1.5× planning weight. ${collection.negotiation}`,
     };
     this.trip.events.unshift({ id: `preferences-${Date.now()}`, type: 'tired', title: 'Group preferences collected', createdAt: new Date().toISOString(), explanation: collection.approvalSummary });
+    return this.getTrip();
+  }
+
+  applyPreferenceDecision(interestScores: GroupPreference['interestScores']): Trip {
+    if (!this.trip.preferenceCollection) throw new Error('Collect group preferences before approving a plan.');
+    const ranked = Object.entries(interestScores).sort(([, left], [, right]) => right - left).slice(0, 3).map(([interest]) => interest);
+    this.trip.groupPreference = {
+      ...this.trip.groupPreference,
+      interestScores,
+      recommendedPace: 'Admin-approved balanced discovery',
+      explanation: `${this.trip.preferenceCollection.adminName} approved the final weighting: ${ranked.join(', ')} lead the itinerary while the group compromises remain protected.`,
+    };
+    this.trip.preferenceCollection = {
+      ...this.trip.preferenceCollection,
+      status: 'approved',
+      approvalSummary: `${this.trip.request.destination} is approved for planning. ${ranked.map((interest) => interest[0].toUpperCase() + interest.slice(1)).join(', ')} lead the group route.`,
+    };
+    this.trip.events.unshift({ id: `preferences-approved-${Date.now()}`, type: 'tired', title: 'Admin approved group preferences', createdAt: new Date().toISOString(), explanation: this.trip.preferenceCollection.approvalSummary });
     return this.getTrip();
   }
 

@@ -45,6 +45,7 @@ export interface PreferenceCollection {
   calls: PreferenceCall[];
   negotiation: string;
   approvalSummary: string;
+  status?: 'pending' | 'approved';
 }
 
 export interface Flight {

@@ -15,6 +15,7 @@ import type { PaymentOrder, TripEvent } from './types.js';
 const replanSchema = z.object({ type: z.enum(['late', 'rain', 'flight-delay', 'closed', 'tired']) });
 const requestSchema = z.object({ conversation: z.string().min(3).max(1000) });
 const preferenceCollectionSchema = z.object({ adminName: z.string().min(2).max(60), adminPhone: z.string().min(7).max(30), phones: z.record(z.string(), z.string().min(7).max(30)) });
+const preferenceDecisionSchema = z.object({ interestScores: z.record(z.string(), z.number().min(1).max(5)) });
 const selectionSchema = z.object({ id: z.string().min(1) });
 const receiptSchema = z.object({ amount: z.number().positive().optional(), restaurant: z.string().min(1).optional(), fileName: z.string().optional() });
 const orderSchema = z.object({ percentages: z.record(z.string(), z.number().min(0).max(100)).optional() }).superRefine((value, ctx) => { if (value.percentages && Math.abs(Object.values(value.percentages).reduce((sum, item) => sum + item, 0) - 100) > 0.01) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Custom split must total 100%' }); });
@@ -60,6 +61,10 @@ export const createApp = () => {
       const trip = store.applyPreferenceCollection(collection);
       res.json({ collection, trip });
     } catch (error) { next(error); }
+  });
+  app.post('/api/planner/approve-preferences', (req, res, next) => {
+    try { res.json({ trip: store.applyPreferenceDecision(preferenceDecisionSchema.parse(req.body).interestScores as ReturnType<typeof store.getTrip>['groupPreference']['interestScores']) }); }
+    catch (error) { next(error); }
   });
 
   app.get('/api/flights/search', async (req, res, next) => {
