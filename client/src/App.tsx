@@ -1,18 +1,20 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ArrowRight, BatteryLow, Bot, CalendarDays, Camera, Check, CheckCircle2, ChevronRight,
   CircleOff, CloudRain, CreditCard, Footprints, Headphones, Hotel as HotelIcon, Landmark,
-  Map, MapPinned, Mic, Plane, PlaneLanding, Route, ScanLine, Sparkles, TrainFront,
+  Map, MapPinned, Mic, Plane, PlaneLanding, RefreshCw, Route, ScanLine, Sparkles, TrainFront,
   Utensils, WalletCards, Zap,
 } from 'lucide-react';
 import { api } from './api';
-import type { ItineraryItem, ItemCategory, PaymentOrder, ReplanType, Trip } from './types';
+import { useAIAgent, useAgentActions, useTranscript, useVocalBridge } from '@vocalbridgeai/react';
+import type { AgentRunStatus, AgentSystem, ItineraryItem, ItemCategory, PaymentOrder, ReplanType, SpecialistAgentId, Trip } from './types';
 
-type Page = 'home' | 'planner' | 'map' | 'operations' | 'checkout';
+type Page = 'home' | 'planner' | 'agents' | 'map' | 'operations' | 'checkout';
 
 const nav: { id: Page; label: string; icon: typeof Map }[] = [
   { id: 'home', label: 'Trip dashboard', icon: Map },
   { id: 'planner', label: 'Voice planner', icon: Mic },
+  { id: 'agents', label: 'Agent network', icon: Bot },
   { id: 'map', label: 'Journey map', icon: Route },
   { id: 'operations', label: 'Operations center', icon: Zap },
   { id: 'checkout', label: 'Booking & checkout', icon: CreditCard },
@@ -112,103 +114,106 @@ function TripOverview({ trip, setPage, activeDay, setActiveDay, onReceipt }: { t
   </div>;
 }
 
-function VoicePlanner({ trip, onTrip }: { trip: Trip; onTrip: (trip: Trip, note: string) => void }) {
+function VoicePlanner({ trip, onTrip, setPage }: { trip: Trip; onTrip: (trip: Trip, note: string) => void; setPage: (page: Page) => void }) {
   const sampleVoiceCommand = 'Plan a 5-day Japan trip for four people under $6,000. We love temples, food, history, and photography.';
   const [conversation, setConversation] = useState(sampleVoiceCommand);
-  const [listening, setListening] = useState(false);
-  const [speechStatus, setSpeechStatus] = useState('Tap the microphone and allow access when your browser asks.');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{ confidence: number; source: string; summary: string } | null>(null);
-  const recognitionRef = useRef<SpeechRecognition | null>(null);
-  const mockVoiceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const speechSupported = typeof window !== 'undefined' && Boolean(window.SpeechRecognition || window.webkitSpeechRecognition);
+  const { state, connect, disconnect, isMicrophoneEnabled, toggleMicrophone, agentMode, error } = useVocalBridge();
+  const { transcript, clear } = useTranscript();
+  const { onAction, sendAction } = useAgentActions();
+  const connected = state === 'connected';
+  const changingConnection = state === 'connecting' || state === 'waiting_for_agent';
 
-  const startListening = () => {
-    if (listening) {
-      if (recognitionRef.current) recognitionRef.current.stop();
-      if (mockVoiceTimeoutRef.current) {
-        clearTimeout(mockVoiceTimeoutRef.current);
-        mockVoiceTimeoutRef.current = null;
-        setListening(false);
-        setSpeechStatus('Mock voice capture stopped. Tap again whenever you are ready.');
-      }
-      return;
-    }
-    const Recognition = window.SpeechRecognition ?? window.webkitSpeechRecognition;
-    if (!Recognition) {
+  const answerAgentQuery = useCallback(async (query: string) => {
+    const response = await api.queryAgents(query);
+    onTrip(response.trip, `Voice query delegated across ${response.agentRun.steps.length} JourneyOS agent task${response.agentRun.steps.length === 1 ? '' : 's'}.`);
+    return response.response;
+  }, [onTrip]);
+  useAIAgent({ onQuery: answerAgentQuery });
+
+  useEffect(() => {
+    const userTranscript = transcript.filter((entry) => entry.role === 'user').map((entry) => entry.text).join(' ').trim();
+    if (userTranscript) setConversation(userTranscript);
+  }, [transcript]);
+  useEffect(() => onAction('show_agent_network', () => setPage('agents')), [onAction, setPage]);
+  useEffect(() => onAction('show_booking_options', () => setPage('checkout')), [onAction, setPage]);
+  useEffect(() => onAction('trip_brief_ready', (payload) => {
+    if (typeof payload.conversation === 'string') setConversation(payload.conversation);
+  }), [onAction]);
+
+  const toggleSession = async () => {
+    if (state === 'disconnected') {
+      clear();
       setConversation('');
-      setListening(true);
-      setSpeechStatus('This preview has no microphone API, so JourneyOS is simulating a voice command…');
-      mockVoiceTimeoutRef.current = setTimeout(() => {
-        setConversation(sampleVoiceCommand);
-        setListening(false);
-        setSpeechStatus('Mock voice captured. Review the transcript, then create the trip brief.');
-        mockVoiceTimeoutRef.current = null;
-      }, 900);
-      return;
-    }
-    const recognition = new Recognition();
-    recognitionRef.current = recognition;
-    recognition.lang = 'en-US';
-    recognition.continuous = false;
-    recognition.interimResults = true;
-    recognition.maxAlternatives = 1;
-    recognition.onstart = () => {
-      setConversation('');
-      setListening(true);
-      setSpeechStatus('Listening now — describe the trip in one natural sentence.');
-    };
-    recognition.onresult = (event) => {
-      let transcript = '';
-      for (let index = 0; index < event.results.length; index += 1) transcript += event.results[index][0]?.transcript ?? '';
-      setConversation(transcript.trim());
-      setSpeechStatus(event.results[event.results.length - 1]?.isFinal ? 'Voice captured. Review the transcript, then create the trip brief.' : 'Transcribing…');
-    };
-    recognition.onerror = (event) => {
-      const messages: Record<string, string> = {
-        'not-allowed': 'Microphone access was blocked. Allow it in the browser’s site settings and try again.',
-        'no-speech': 'No speech was detected. Try again and speak after the microphone turns coral.',
-        network: 'The browser speech service could not be reached. You can still type the request.',
-      };
-      setSpeechStatus(messages[event.error] ?? `Voice recognition stopped: ${event.error}.`);
-      setListening(false);
-    };
-    recognition.onend = () => {
-      setListening(false);
-      recognitionRef.current = null;
-    };
-    try {
-      recognition.start();
-    } catch {
-      recognitionRef.current = null;
-      setListening(false);
-      setSpeechStatus('The browser could not start voice capture. Check microphone permission, then try again.');
-    }
+      await connect();
+    } else await disconnect();
   };
-  useEffect(() => () => {
-    recognitionRef.current?.abort();
-    if (mockVoiceTimeoutRef.current) clearTimeout(mockVoiceTimeoutRef.current);
-  }, []);
   const createPlan = async () => {
     setLoading(true);
     try {
-      const response = await api.extractPlan(conversation);
+      const response = await api.extractPlan(conversation || sampleVoiceCommand);
       setResult(response);
       onTrip(response.trip, 'Voice brief structured into a living trip plan.');
-    } catch (error) { onTrip(trip, error instanceof Error ? error.message : 'Could not extract that trip request.'); }
+      await sendAction('trip_plan_created', { summary: response.summary });
+    } catch (cause) { onTrip(trip, cause instanceof Error ? cause.message : 'Could not extract that trip request.'); }
     finally { setLoading(false); }
   };
-  const extracted = result ? trip.request : trip.request;
+  const extracted = trip.request;
+  const statusLabel = changingConnection ? 'Connecting to your voice agent…' : connected ? 'Voice agent connected' : 'Ready for a voice session';
   return <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
-    <section className="relative overflow-hidden rounded-[32px] bg-[#eff6f1] px-6 py-8 sm:px-10"><div className="relative z-10"><p className="eyebrow text-moss">Live voice capture</p><h1 className="mt-2 font-display text-4xl leading-[0.95] text-ink sm:text-5xl">Tell us where the story goes.</h1><p className="mt-4 max-w-md text-sm leading-6 text-stone-600">Speak naturally. JourneyOS turns a loose travel wish into a structured brief your whole group can review.</p><div className="mt-8 flex flex-col items-center"><button type="button" onClick={startListening} aria-pressed={listening} aria-label={listening ? 'Stop listening' : speechSupported ? 'Start voice capture' : 'Run mock voice capture'} className={`grid h-36 w-36 place-items-center rounded-full border-[10px] border-white shadow-xl transition ${listening ? 'bg-coral text-white animate-pulse' : 'bg-moss text-white hover:scale-105'}`}><Mic size={42} /></button><p className="mt-4 text-sm font-bold text-ink">{listening ? 'Listening… tap to stop' : speechSupported ? 'Tap to start a voice brief' : 'Run a mock voice command'}</p><p className={`mt-2 max-w-sm text-center text-xs leading-5 ${speechSupported ? 'text-stone-500' : 'font-semibold text-coral'}`}>{speechStatus}</p><p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-moss/60">{speechSupported ? 'Browser speech recognition · Vocal Bridge ready' : 'Mock voice fallback · microphone API unavailable here'}</p></div></div><div className="absolute -bottom-12 -right-12 h-60 w-60 rounded-full border-[24px] border-[#d3e8d8]" /></section>
-    <section className="rounded-[32px] border border-stone-200 bg-white p-6 sm:p-8"><div className="flex items-center justify-between"><div><p className="eyebrow">Conversation transcript</p><h2 className="mt-1 text-xl font-bold text-ink">Your travel brief</h2></div><Headphones className="text-moss" /></div><label className="sr-only" htmlFor="trip-conversation">Trip request</label><textarea id="trip-conversation" value={conversation} onChange={(event) => setConversation(event.target.value)} className="mt-5 min-h-36 w-full resize-none rounded-2xl border border-stone-200 bg-stone-50 p-4 text-sm leading-6 text-ink outline-none transition focus:border-moss focus:ring-4 focus:ring-moss/10" /><button onClick={() => void createPlan()} disabled={loading} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-ink px-4 py-3.5 text-sm font-bold text-white transition hover:bg-moss disabled:cursor-wait disabled:opacity-70"><Sparkles size={17} />{loading ? 'Understanding your trip…' : 'Create my trip brief'}</button>{result && <p className="mt-3 text-center text-xs font-semibold text-moss">{result.source === 'mock' ? 'Demo extraction' : 'Vocal Bridge extraction'} · {Math.round(result.confidence * 100)}% confidence</p>}</section>
-    <section className="rounded-[32px] border border-stone-200 bg-white p-6 xl:col-span-2"><div className="flex flex-wrap items-end justify-between gap-4"><div><p className="eyebrow">Structured output</p><h2 className="mt-1 text-xl font-bold text-ink">The AI heard the important things.</h2></div><span className="rounded-full bg-[#eff6f1] px-3 py-1.5 text-xs font-bold text-moss">{extracted.travelStyle}</span></div><div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><div className="soft-stat"><span>Destination</span><strong>{extracted.destination}</strong></div><div className="soft-stat"><span>Time together</span><strong>{extracted.duration} days</strong></div><div className="soft-stat"><span>Group size</span><strong>{extracted.travelers} travelers</strong></div><div className="soft-stat"><span>Shared budget</span><strong>{money(extracted.budget)}</strong></div></div><div className="mt-5 flex flex-wrap gap-2">{extracted.interests.map((interest) => <span className="rounded-full bg-sand px-3 py-1.5 text-xs font-bold capitalize text-ink" key={interest}>{interest}</span>)}{extracted.foodPreferences.map((food) => <span className="rounded-full bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-700" key={food}>{food}</span>)}</div></section>
+    <section className="relative overflow-hidden rounded-[32px] bg-[#eff6f1] px-6 py-8 sm:px-10"><div className="relative z-10"><p className="eyebrow text-moss">Vocal Bridge live session</p><h1 className="mt-2 font-display text-4xl leading-[0.95] text-ink sm:text-5xl">Tell us where the story goes.</h1><p className="mt-4 max-w-md text-sm leading-6 text-stone-600">Speak naturally. Vocal Bridge handles the live conversation while the Journey Orchestrator delegates planning work to specialist agents.</p><div className="mt-8 flex flex-col items-center"><button type="button" onClick={() => void toggleSession()} disabled={changingConnection} aria-pressed={connected} aria-label={connected ? 'End voice session' : 'Start voice session'} className={`grid h-36 w-36 place-items-center rounded-full border-[10px] border-white shadow-xl transition disabled:cursor-wait disabled:opacity-70 ${connected ? 'bg-coral text-white animate-pulse' : 'bg-moss text-white hover:scale-105'}`}><Mic size={42} /></button><p className="mt-4 text-sm font-bold text-ink">{connected ? 'End voice session' : changingConnection ? 'Connecting…' : 'Start voice session'}</p><p role="status" aria-live="polite" className="mt-2 max-w-sm text-center text-xs leading-5 text-stone-500">{statusLabel}</p>{connected && <button type="button" onClick={() => void toggleMicrophone()} aria-pressed={!isMicrophoneEnabled} className="mt-3 rounded-full bg-white px-3 py-1.5 text-xs font-bold text-moss ring-1 ring-moss/15">{isMicrophoneEnabled ? 'Mute microphone' : 'Unmute microphone'}</button>}{error && <p role="alert" className="mt-3 max-w-sm text-center text-xs font-semibold text-coral">{error.code === 'MICROPHONE_ERROR' ? 'Microphone access was blocked. Allow it in site settings and try again.' : error.message}</p>}<p className="mt-3 text-[10px] font-bold uppercase tracking-wider text-moss/60">{__VOCAL_BRIDGE_SDK_AVAILABLE__ ? `Vocal Bridge · ${agentMode ?? 'WebRTC'}` : 'Offline fallback · install Vocal Bridge packages for WebRTC'}</p></div></div><div className="absolute -bottom-12 -right-12 h-60 w-60 rounded-full border-[24px] border-[#d3e8d8]" /></section>
+    <section className="rounded-[32px] border border-stone-200 bg-white p-6 sm:p-8"><div className="flex items-center justify-between"><div><p className="eyebrow">Live transcript</p><h2 className="mt-1 text-xl font-bold text-ink">Your travel brief</h2></div><Headphones className="text-moss" /></div>{transcript.length > 0 && <ol aria-live="polite" aria-relevant="additions" className="mt-5 max-h-48 space-y-2 overflow-y-auto rounded-2xl bg-stone-50 p-3">{transcript.map((entry, index) => <li key={`${entry.timestamp}-${index}`} className="text-xs leading-5"><b className={entry.role === 'user' ? 'text-moss' : 'text-coral'}>{entry.role === 'user' ? 'You' : 'JourneyOS'}:</b> <span className="text-stone-600">{entry.text}</span></li>)}</ol>}<label className="sr-only" htmlFor="trip-conversation">Trip request</label><textarea id="trip-conversation" value={conversation} onChange={(event) => setConversation(event.target.value)} placeholder="Your spoken request appears here…" className="mt-5 min-h-32 w-full resize-none rounded-2xl border border-stone-200 bg-stone-50 p-4 text-sm leading-6 text-ink outline-none transition focus:border-moss focus:ring-4 focus:ring-moss/10" /><div className="mt-4 flex gap-2"><button onClick={() => void createPlan()} disabled={loading || !conversation.trim()} className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-ink px-4 py-3.5 text-sm font-bold text-white transition hover:bg-moss disabled:cursor-wait disabled:opacity-70"><Sparkles size={17} />{loading ? 'Understanding your trip…' : 'Create my trip brief'}</button>{transcript.length > 0 && <button type="button" onClick={clear} className="rounded-2xl bg-stone-100 px-4 text-xs font-bold text-stone-600">Clear</button>}</div>{result && <p className="mt-3 text-center text-xs font-semibold text-moss">Local trip extraction · {Math.round(result.confidence * 100)}% confidence</p>}</section>
+    <section className="rounded-[32px] border border-stone-200 bg-white p-6 xl:col-span-2"><div className="flex flex-wrap items-end justify-between gap-4"><div><p className="eyebrow">Structured output</p><h2 className="mt-1 text-xl font-bold text-ink">The agent network heard the important things.</h2></div><span className="rounded-full bg-[#eff6f1] px-3 py-1.5 text-xs font-bold text-moss">{extracted.travelStyle}</span></div><div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><div className="soft-stat"><span>Destination</span><strong>{extracted.destination}</strong></div><div className="soft-stat"><span>Time together</span><strong>{extracted.duration} days</strong></div><div className="soft-stat"><span>Group size</span><strong>{extracted.travelers} travelers</strong></div><div className="soft-stat"><span>Shared budget</span><strong>{money(extracted.budget)}</strong></div></div><div className="mt-5 flex flex-wrap gap-2">{extracted.interests.map((interest) => <span className="rounded-full bg-sand px-3 py-1.5 text-xs font-bold capitalize text-ink" key={interest}>{interest}</span>)}{extracted.foodPreferences.map((food) => <span className="rounded-full bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-700" key={food}>{food}</span>)}</div></section>
   </div>;
 }
 
 function TravelerProfiles({ trip }: { trip: Trip }) {
   const ranked = Object.entries(trip.groupPreference.interestScores).sort((a, b) => b[1] - a[1]);
   return <section className="rounded-[30px] border border-stone-200 bg-white p-5 sm:p-6"><div className="flex flex-wrap items-start justify-between gap-4"><div><p className="eyebrow">Travel DNA · group model</p><h2 className="mt-1 text-xl font-bold text-ink">Everyone has a place in the plan.</h2></div><span className="rounded-full bg-[#eff6f1] px-3 py-1.5 text-xs font-bold text-moss">{trip.groupPreference.recommendedPace}</span></div><div className="mt-5 grid gap-3 lg:grid-cols-4">{trip.travelers.map((traveler) => <article key={traveler.id} className="rounded-2xl bg-[#fafbf9] p-4"><div className="flex items-center gap-3"><span className="grid h-10 w-10 place-items-center rounded-full bg-ink text-xs font-bold text-white">{traveler.initials}</span><div><p className="font-bold text-ink">{traveler.name}</p><p className="text-[11px] capitalize text-stone-500">{traveler.pacePreference} pace · {traveler.foodPreference}</p></div></div><div className="mt-4 space-y-1.5">{Object.entries(traveler.interests).sort(([, a], [, b]) => b - a).slice(0, 3).map(([name, value]) => <div className="flex items-center justify-between text-xs" key={name}><span className="capitalize text-stone-600">{name}</span><StarRow value={value} /></div>)}</div></article>)}</div><div className="mt-5 flex flex-col gap-3 rounded-2xl bg-[#fff8e9] p-4 sm:flex-row sm:items-center"><Bot className="shrink-0 text-coral" /><p className="text-sm leading-6 text-ink"><span className="font-bold">Why this route?</span> {trip.groupPreference.explanation}</p></div><div className="mt-5 flex flex-wrap gap-x-5 gap-y-2">{ranked.slice(0, 5).map(([interest, score]) => <div className="flex items-center gap-2" key={interest}><span className="capitalize text-xs font-semibold text-stone-600">{interest}</span><div className="h-1.5 w-16 overflow-hidden rounded-full bg-stone-100"><div className="h-full rounded-full bg-moss" style={{ width: `${Number(score) * 20}%` }} /></div></div>)}</div></section>;
+}
+
+const agentStatusMeta: Record<AgentRunStatus | 'idle', { label: string; className: string }> = {
+  idle: { label: 'Ready', className: 'bg-stone-100 text-stone-600' },
+  running: { label: 'Working', className: 'bg-amber-100 text-amber-800' },
+  completed: { label: 'Done', className: 'bg-emerald-100 text-emerald-800' },
+  failed: { label: 'Needs review', className: 'bg-rose-100 text-rose-800' },
+};
+
+function AgentNetwork() {
+  const [system, setSystem] = useState<AgentSystem | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const load = async () => {
+    setLoading(true);
+    setError(null);
+    try { setSystem(await api.getAgents()); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not load the agent network.'); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { void load(); }, []);
+
+  const recentSteps = system?.recentRuns.flatMap((run) => run.steps) ?? [];
+  const statusFor = (agentId: SpecialistAgentId) => recentSteps.find((step) => step.agentId === agentId)?.status ?? 'idle';
+
+  return <div className="space-y-6">
+    <section className="relative overflow-hidden rounded-[32px] bg-ink px-7 py-8 text-white sm:px-10"><div className="relative z-10 flex flex-col justify-between gap-6 md:flex-row md:items-end"><div><p className="eyebrow text-emerald-200">Multi-agent control plane</p><h1 className="mt-2 max-w-2xl font-display text-4xl leading-none sm:text-5xl">One request. Seven focused minds.</h1><p className="mt-4 max-w-2xl text-sm leading-6 text-white/65">The Journey Orchestrator delegates each job to a tool-backed specialist, merges their output, and leaves a trace you can inspect.</p></div><div className="flex items-center gap-3 rounded-2xl bg-white/10 px-4 py-3"><span className="grid h-10 w-10 place-items-center rounded-xl bg-[#8fe0b7] text-ink"><Bot size={20} /></span><div><p className="text-2xl font-bold">{system?.totalAgents ?? 7}</p><p className="text-[10px] font-bold uppercase tracking-widest text-white/55">agents in network</p></div></div></div><div className="absolute -right-14 -top-16 h-72 w-72 rounded-full border-[30px] border-white/5" /></section>
+
+    {error && <div role="alert" className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-semibold text-rose-800">{error} Restart the local API after pulling the latest code, then refresh this panel.</div>}
+
+    <section aria-busy={loading} className="grid gap-5 xl:grid-cols-[0.72fr_1.28fr]">
+      <article className="rounded-[28px] border border-moss/20 bg-[#eff6f1] p-6"><div className="flex items-center justify-between"><span className="grid h-12 w-12 place-items-center rounded-2xl bg-moss text-white"><Bot size={22} /></span><span className="rounded-full bg-white px-3 py-1.5 text-xs font-bold text-moss">Coordinator</span></div><h2 className="mt-5 text-2xl font-bold text-ink">{system?.coordinator.name ?? 'Journey Orchestrator'}</h2><p className="mt-3 text-sm leading-6 text-stone-600">{system?.coordinator.role ?? 'Routes work to the right specialist and merges the result into one trip.'}</p><div className="mt-5 flex flex-wrap gap-2">{(system?.coordinator.tools ?? ['Task routing', 'Shared trip context', 'Decision trace']).map((tool) => <span key={tool} className="rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-moss">{tool}</span>)}</div></article>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{system?.specialists.map((agent) => {
+        const status = statusFor(agent.id as SpecialistAgentId);
+        const meta = agentStatusMeta[status];
+        return <article key={agent.id} className="rounded-3xl border border-stone-200 bg-white p-5"><div className="flex items-center justify-between"><span className="grid h-10 w-10 place-items-center rounded-2xl bg-stone-50 text-moss ring-1 ring-stone-200"><Sparkles size={17} /></span><span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${meta.className}`}>{meta.label}</span></div><h3 className="mt-4 font-bold text-ink">{agent.name}</h3><p className="mt-2 text-xs leading-5 text-stone-500">{agent.role}</p><p className="mt-4 text-[10px] font-bold uppercase tracking-widest text-stone-400">{agent.tools.join(' · ')}</p></article>;
+      }) ?? Array.from({ length: 6 }, (_, index) => <div className="h-48 animate-pulse rounded-3xl bg-stone-100" key={index} />)}</div>
+    </section>
+
+    <section className="rounded-[28px] border border-stone-200 bg-white p-5 sm:p-7"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="eyebrow">Delegation trace</p><h2 className="mt-1 text-xl font-bold text-ink">See which agent did what.</h2></div><button type="button" onClick={() => void load()} disabled={loading} className="inline-flex items-center gap-2 rounded-xl bg-stone-100 px-3 py-2 text-xs font-bold text-ink transition hover:bg-stone-200 disabled:opacity-60"><RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Refresh activity</button></div>
+      <div className="mt-5" aria-live="polite">{system?.recentRuns.length ? <div className="space-y-4">{system.recentRuns.slice(0, 5).map((run) => <article key={run.id} className="rounded-2xl bg-[#fafbf9] p-4"><div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-sm font-bold text-ink">{run.intent}</p><p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-stone-400">{run.id} · {new Date(run.startedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p></div><span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${agentStatusMeta[run.status].className}`}>{agentStatusMeta[run.status].label}</span></div><ol className="mt-4 space-y-2 border-l-2 border-moss/15 pl-4">{run.steps.map((step) => <li key={step.id} className="relative"><span className="absolute -left-[1.32rem] top-1.5 h-2.5 w-2.5 rounded-full bg-moss ring-4 ring-white" /><div className="flex flex-wrap items-baseline gap-x-2"><b className="text-xs text-ink">{step.agentName}</b><span className="text-xs text-stone-500">{step.task}</span></div>{step.outputSummary && <p className="mt-1 text-[11px] font-semibold text-moss">{step.outputSummary}{typeof step.durationMs === 'number' ? ` · ${step.durationMs}ms` : ''}</p>}{step.error && <p className="mt-1 text-[11px] font-semibold text-rose-700">{step.error}</p>}</li>)}</ol></article>)}</div> : <div className="rounded-2xl border border-dashed border-stone-300 bg-stone-50 px-5 py-8 text-center"><Bot className="mx-auto text-stone-300" /><p className="mt-3 text-sm font-bold text-ink">No handoffs yet.</p><p className="mt-1 text-xs text-stone-500">Create a voice brief, choose a booking, or trigger a disruption—then refresh to inspect the run.</p></div>}</div>
+    </section>
+  </div>;
 }
 
 function JourneyMap({ trip, activeDay, setActiveDay }: { trip: Trip; activeDay: number; setActiveDay: (day: number) => void }) {
@@ -247,8 +252,8 @@ function App() {
   const title = useMemo(() => nav.find((item) => item.id === page)?.label ?? 'JourneyOS', [page]);
   const scanReceipt = async () => { if (!trip) return; try { const response = await api.scanReceipt(); onTrip(response.trip, `${response.receipt.restaurant} receipt scanned — ${money(response.receipt.amount)} added to live spend.`); } catch (error) { setNotice(error instanceof Error ? error.message : 'Could not scan receipt.'); } };
   if (!trip) return <main className="grid min-h-screen place-items-center bg-cream"><div className="text-center"><div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-moss text-white animate-pulse"><Sparkles /></div><p className="mt-4 text-sm font-bold text-ink">Opening your journey…</p></div></main>;
-  const content = page === 'home' ? <><TripOverview trip={trip} setPage={setPage} activeDay={activeDay} setActiveDay={setActiveDay} onReceipt={() => void scanReceipt()} /><div className="mt-6"><TravelerProfiles trip={trip} /></div></> : page === 'planner' ? <VoicePlanner trip={trip} onTrip={onTrip} /> : page === 'map' ? <JourneyMap trip={trip} activeDay={activeDay} setActiveDay={setActiveDay} /> : page === 'operations' ? <OperationsCenter trip={trip} onTrip={onTrip} /> : <BookingCheckout trip={trip} onTrip={onTrip} />;
-  return <div className="min-h-screen bg-cream text-ink"><aside className="fixed inset-y-0 left-0 z-40 hidden w-[248px] flex-col border-r border-stone-200 bg-white px-5 py-6 lg:flex"><div className="flex items-center gap-3 px-2"><span className="grid h-10 w-10 place-items-center rounded-2xl bg-ink text-lg font-bold text-white">J</span><div><p className="font-display text-2xl leading-none text-ink">JourneyOS</p><p className="mt-1 text-[10px] font-bold uppercase tracking-[0.16em] text-moss">Travel, arranged.</p></div></div><nav className="mt-10 space-y-1">{nav.map(({ id, label, icon: Icon }) => <button key={id} onClick={() => setPage(id)} className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold transition ${page === id ? 'bg-[#eff6f1] text-moss' : 'text-stone-500 hover:bg-stone-50 hover:text-ink'}`}><Icon size={18} />{label}</button>)}</nav><div className="mt-auto rounded-2xl bg-ink p-4 text-white"><p className="text-xs font-bold">Your travel DNA is learning.</p><p className="mt-2 text-xs leading-5 text-white/60">Each choice makes the next trip feel more like you.</p><div className="mt-3 flex items-center gap-1.5"><Sparkles size={14} className="text-amber-300" /><span className="text-xs font-bold text-amber-100">Culture-forward</span></div></div></aside><header className="sticky top-0 z-30 border-b border-stone-200 bg-cream/90 px-5 py-4 backdrop-blur lg:ml-[248px] lg:px-9"><div className="mx-auto flex max-w-[1400px] items-center justify-between"><div className="flex items-center gap-3"><button onClick={() => setMenuOpen(!menuOpen)} className="grid h-9 w-9 place-items-center rounded-xl bg-white text-ink ring-1 ring-stone-200 lg:hidden"><Map size={17} /></button><div><p className="text-[10px] font-bold uppercase tracking-[0.14em] text-stone-400">{trip.dates}</p><h2 className="text-sm font-bold text-ink">{title}</h2></div></div><div className="flex items-center gap-2"><span className="hidden rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-stone-500 ring-1 ring-stone-200 sm:inline-flex">4 travelers</span><span className="grid h-9 w-9 place-items-center rounded-full bg-coral text-xs font-bold text-white">AY</span></div></div>{menuOpen && <div className="mx-auto mt-4 max-w-[1400px] rounded-2xl bg-white p-2 shadow-lg ring-1 ring-stone-200 lg:hidden">{nav.map(({ id, label, icon: Icon }) => <button onClick={() => { setPage(id); setMenuOpen(false); }} className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold ${page === id ? 'bg-[#eff6f1] text-moss' : 'text-stone-600'}`} key={id}><Icon size={17} />{label}</button>)}</div>}</header><main className="px-5 py-7 lg:ml-[248px] lg:px-9"><div className="mx-auto max-w-[1400px]">{content}</div></main>{notice && <div className="fixed bottom-5 right-5 z-50 max-w-sm rounded-2xl bg-ink px-4 py-3 text-sm font-semibold text-white shadow-2xl"><div className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 shrink-0 text-[#8fe0b7]" size={17} /><span>{notice}</span></div></div>}</div>;
+  const content = page === 'home' ? <><TripOverview trip={trip} setPage={setPage} activeDay={activeDay} setActiveDay={setActiveDay} onReceipt={() => void scanReceipt()} /><div className="mt-6"><TravelerProfiles trip={trip} /></div></> : page === 'planner' ? <VoicePlanner trip={trip} onTrip={onTrip} setPage={setPage} /> : page === 'agents' ? <AgentNetwork /> : page === 'map' ? <JourneyMap trip={trip} activeDay={activeDay} setActiveDay={setActiveDay} /> : page === 'operations' ? <OperationsCenter trip={trip} onTrip={onTrip} /> : <BookingCheckout trip={trip} onTrip={onTrip} />;
+  return <div className="min-h-screen bg-cream text-ink"><aside className="fixed inset-y-0 left-0 z-40 hidden w-[248px] flex-col border-r border-stone-200 bg-white px-5 py-6 lg:flex"><div className="flex items-center gap-3 px-2"><span className="grid h-10 w-10 place-items-center rounded-2xl bg-ink text-lg font-bold text-white">J</span><div><p className="font-display text-2xl leading-none text-ink">JourneyOS</p><p className="mt-1 text-[10px] font-bold uppercase tracking-[0.16em] text-moss">Travel, arranged.</p></div></div><nav className="mt-10 space-y-1">{nav.map(({ id, label, icon: Icon }) => <button key={id} onClick={() => setPage(id)} className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold transition ${page === id ? 'bg-[#eff6f1] text-moss' : 'text-stone-500 hover:bg-stone-50 hover:text-ink'}`}><Icon size={18} />{label}</button>)}</nav><div className="mt-auto rounded-2xl bg-ink p-4 text-white"><p className="text-xs font-bold">Your travel DNA is learning.</p><p className="mt-2 text-xs leading-5 text-white/60">Each choice makes the next trip feel more like you.</p><div className="mt-3 flex items-center gap-1.5"><Sparkles size={14} className="text-amber-300" /><span className="text-xs font-bold text-amber-100">Culture-forward</span></div></div></aside><header className="sticky top-0 z-30 border-b border-stone-200 bg-cream/90 px-5 py-4 backdrop-blur lg:ml-[248px] lg:px-9"><div className="mx-auto flex max-w-[1400px] items-center justify-between"><div className="flex items-center gap-3"><button onClick={() => setMenuOpen(!menuOpen)} className="grid h-9 w-9 place-items-center rounded-xl bg-white text-ink ring-1 ring-stone-200 lg:hidden"><Map size={17} /></button><div><p className="text-[10px] font-bold uppercase tracking-[0.14em] text-stone-400">{trip.dates}</p><h2 className="text-sm font-bold text-ink">{title}</h2></div></div><div className="flex items-center gap-2"><button type="button" onClick={() => setPage('agents')} className="hidden items-center gap-2 rounded-full bg-[#eff6f1] px-3 py-1.5 text-xs font-bold text-moss ring-1 ring-moss/10 transition hover:bg-[#e4f0e7] sm:inline-flex"><Bot size={14} /> 7 agents</button><span className="hidden rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-stone-500 ring-1 ring-stone-200 md:inline-flex">4 travelers</span><span className="grid h-9 w-9 place-items-center rounded-full bg-coral text-xs font-bold text-white">AY</span></div></div>{menuOpen && <div className="mx-auto mt-4 max-w-[1400px] rounded-2xl bg-white p-2 shadow-lg ring-1 ring-stone-200 lg:hidden">{nav.map(({ id, label, icon: Icon }) => <button onClick={() => { setPage(id); setMenuOpen(false); }} className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold ${page === id ? 'bg-[#eff6f1] text-moss' : 'text-stone-600'}`} key={id}><Icon size={17} />{label}</button>)}</div>}</header><main className="px-5 py-7 lg:ml-[248px] lg:px-9"><div className="mx-auto max-w-[1400px]">{content}</div></main>{notice && <div className="fixed bottom-5 right-5 z-50 max-w-sm rounded-2xl bg-ink px-4 py-3 text-sm font-semibold text-white shadow-2xl"><div className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 shrink-0 text-[#8fe0b7]" size={17} /><span>{notice}</span></div></div>}</div>;
 }
 
 export default App;

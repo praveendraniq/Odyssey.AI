@@ -18,7 +18,8 @@ export const config = {
   },
   vocalBridge: {
     apiKey: process.env.VOCAL_BRIDGE_API_KEY,
-    baseUrl: process.env.VOCAL_BRIDGE_BASE_URL,
+    apiUrl: process.env.VOCAL_BRIDGE_API_URL ?? process.env.VOCAL_BRIDGE_BASE_URL ?? 'https://vocalbridgeai.com',
+    agentId: process.env.VOCAL_BRIDGE_AGENT_ID,
   },
   landingAi: {
     apiKey: process.env.LANDING_AI_API_KEY,

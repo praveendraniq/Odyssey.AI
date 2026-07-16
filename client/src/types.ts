@@ -13,3 +13,10 @@ export interface TravelDna { culture: number; history: number; photography: numb
 export interface Budget { total: number; spent: number; remaining: number; flight: number; hotel: number; activities: number; food: number; }
 export interface Trip { id: string; name: string; request: TripRequest; dates: string; travelers: Traveler[]; groupPreference: GroupPreference; flights: Flight[]; hotels: Hotel[]; itinerary: ItineraryItem[]; budget: Budget; travelDna: TravelDna; events: TripEvent[]; progress: number; }
 export interface PaymentOrder { id: string; status: 'CREATED' | 'COMPLETED'; total: number; currency: 'USD'; split: { travelerId: string; name: string; amount: number }[]; approveUrl?: string; mock: boolean; }
+
+export type SpecialistAgentId = 'voice-preference' | 'travel-inventory' | 'itinerary-route' | 'live-operations' | 'commerce' | 'travel-dna';
+export type AgentRunStatus = 'running' | 'completed' | 'failed';
+export interface AgentDefinition { id: 'journey-coordinator' | SpecialistAgentId; name: string; role: string; tools: string[]; }
+export interface AgentStep { id: string; agentId: SpecialistAgentId; agentName: string; task: string; status: AgentRunStatus; startedAt: string; completedAt?: string; durationMs?: number; outputSummary?: string; error?: string; }
+export interface AgentRun { id: string; intent: string; status: AgentRunStatus; startedAt: string; completedAt?: string; steps: AgentStep[]; }
+export interface AgentSystem { totalAgents: number; coordinator: AgentDefinition; specialists: AgentDefinition[]; recentRuns: AgentRun[]; }

@@ -1,0 +1,23 @@
+[
+  {
+    "name": "show_agent_network",
+    "description": "Open the JourneyOS Agent Network so the traveler can inspect delegation and handoff traces.",
+    "direction": "agent_to_app"
+  },
+  {
+    "name": "show_booking_options",
+    "description": "Open JourneyOS Booking and Checkout so the traveler can review flights, hotels, and payment details.",
+    "direction": "agent_to_app"
+  },
+  {
+    "name": "trip_brief_ready",
+    "description": "Place a finalized spoken trip request into the JourneyOS editable trip brief. Payload field: conversation.",
+    "direction": "agent_to_app"
+  },
+  {
+    "name": "trip_plan_created",
+    "description": "Notify the voice agent that JourneyOS structured and saved the trip brief.",
+    "direction": "app_to_agent",
+    "behavior": "notify"
+  }
+]

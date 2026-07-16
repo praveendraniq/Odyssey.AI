@@ -1,0 +1,5 @@
+{
+  "enabled": true,
+  "description": "JourneyOS travel coordinator that delegates trip planning, traveler preferences, Sabre inventory, itinerary routing, disruption recovery, budgeting, and Travel DNA questions to six specialist agents.",
+  "verbatim": false
+}

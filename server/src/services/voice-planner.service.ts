@@ -1,4 +1,3 @@
-import { config } from '../config.js';
 import type { Interest, TripRequest } from '../types.js';
 
 const defaultRequest: TripRequest = {
@@ -15,18 +14,7 @@ const toNumber = (value: string) => /^\d+$/.test(value) ? Number(value) : number
  * of an eventual Vocal Bridge structured conversation response.
  */
 export class VocalBridgeService {
-  async extractTrip(conversation: string): Promise<{ request: TripRequest; source: 'mock' | 'vocal-bridge'; confidence: number }> {
-    if (!config.mockMode && config.vocalBridge.baseUrl && config.vocalBridge.apiKey) {
-      const response = await fetch(`${config.vocalBridge.baseUrl.replace(/\/$/, '')}/v1/conversations/extract`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.vocalBridge.apiKey}` },
-        body: JSON.stringify({ conversation, schema: 'journeyos.trip_request.v1' }),
-      });
-      if (!response.ok) throw new Error(`Vocal Bridge returned ${response.status}`);
-      const body = await response.json() as { trip?: TripRequest; confidence?: number };
-      if (body.trip) return { request: body.trip, source: 'vocal-bridge', confidence: body.confidence ?? 0.9 };
-    }
-
+  async extractTrip(conversation: string): Promise<{ request: TripRequest; source: 'local-parser'; confidence: number }> {
     const value = conversation.toLowerCase();
     const request = structuredClone(defaultRequest);
     const destination = value.match(/(?:to|in|visit)\s+([a-z ]+?)(?:\s+(?:for|under|with|this|next)|[.,]|$)/i)?.[1]?.trim();
@@ -49,6 +37,6 @@ export class VocalBridgeService {
     if (/slow|relax|easy/.test(value)) request.travelStyle = 'slow, restorative';
     if (/fast|packed|adventure/.test(value)) request.travelStyle = 'high-energy exploration';
     if (/vegetarian|vegan/.test(value)) request.foodPreferences = ['vegetarian friendly', ...request.foodPreferences.filter((food) => food !== 'vegetarian friendly')];
-    return { request, source: 'mock', confidence: 0.94 };
+    return { request, source: 'local-parser', confidence: 0.94 };
   }
 }
