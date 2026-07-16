@@ -153,6 +153,17 @@ export class DemoStore {
 
   hydrate(trip: Trip): void { this.trip = structuredClone(trip); }
 
+  completeStop(id: string): Trip {
+    const stop = this.trip.itinerary.find((item) => item.id === id);
+    if (!stop) throw new Error('That itinerary stop no longer exists.');
+    stop.status = 'completed';
+    const dnaKey = stop.category === 'culture' || stop.category === 'museum' ? 'culture' : stop.category === 'food' ? 'food' : stop.category === 'nature' ? 'photography' : 'history';
+    this.trip.travelDna[dnaKey] = Math.min(5, this.trip.travelDna[dnaKey] + 1);
+    this.trip.progress = Math.min(100, this.trip.progress + 8);
+    this.trip.events.unshift({ id: `completed-${Date.now()}`, type: 'tired', title: `${stop.title} completed`, createdAt: new Date().toISOString(), explanation: `JourneyOS learned from time spent at ${stop.title} and increased the group’s ${dnaKey} signal for the next day.` });
+    return this.getTrip();
+  }
+
   applyPreferenceCollection(collection: PreferenceCollection): Trip {
     this.trip.preferenceCollection = { ...collection, status: 'pending' };
     this.trip.groupPreference = {

@@ -15,7 +15,7 @@ export class GooglePlacesService {
       headers: {
         'Content-Type': 'application/json',
         'X-Goog-Api-Key': config.googlePlaces.apiKey,
-        'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress',
+        'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.shortFormattedAddress',
       },
       body: JSON.stringify({ textQuery: `popular visitor attractions and sights in ${destination}`, languageCode: 'en', maxResultCount: Math.min(Math.max(limit, 2), 20) }),
     });
@@ -23,9 +23,9 @@ export class GooglePlacesService {
       const detail = (await response.text()).slice(0, 240);
       throw new Error(`Google Places search returned ${response.status}${detail ? `: ${detail}` : ''}`);
     }
-    const body = await response.json() as { places?: Array<{ id?: string; displayName?: { text?: string }; formattedAddress?: string }> };
+    const body = await response.json() as { places?: Array<{ id?: string; displayName?: { text?: string }; formattedAddress?: string; shortFormattedAddress?: string }> };
     return (body.places ?? [])
-      .filter((place) => place.displayName?.text && place.formattedAddress)
-      .map((place, index) => ({ id: place.id ?? `place-${index}`, name: place.displayName!.text!, address: place.formattedAddress! }));
+      .filter((place) => place.displayName?.text && (place.formattedAddress || place.shortFormattedAddress))
+      .map((place, index) => ({ id: place.id ?? `place-${index}`, name: place.displayName!.text!, address: place.formattedAddress ?? place.shortFormattedAddress! }));
   }
 }

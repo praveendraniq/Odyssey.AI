@@ -14,9 +14,10 @@ import type { PaymentOrder, TripEvent } from './types.js';
 
 const replanSchema = z.object({ type: z.enum(['late', 'rain', 'flight-delay', 'closed', 'tired']), trip: z.unknown().optional() });
 const requestSchema = z.object({ conversation: z.string().min(3).max(1000) });
-const preferenceCollectionSchema = z.object({ adminName: z.string().min(2).max(60), adminPhone: z.string().min(7).max(30), phones: z.record(z.string(), z.string().min(7).max(30)) });
-const preferenceDecisionSchema = z.object({ interestScores: z.record(z.string(), z.number().min(1).max(5)) });
+const preferenceCollectionSchema = z.object({ adminName: z.string().min(2).max(60), adminPhone: z.string().min(7).max(30), phones: z.record(z.string(), z.string().min(7).max(30)), trip: z.unknown().optional() });
+const preferenceDecisionSchema = z.object({ interestScores: z.record(z.string(), z.number().min(1).max(5)), trip: z.unknown().optional() });
 const selectionSchema = z.object({ id: z.string().min(1), trip: z.unknown().optional() });
+const completeStopSchema = z.object({ id: z.string().min(1), trip: z.unknown().optional() });
 const receiptSchema = z.object({ amount: z.number().positive().optional(), restaurant: z.string().min(1).optional(), fileName: z.string().optional() });
 const orderSchema = z.object({ percentages: z.record(z.string(), z.number().min(0).max(100)).optional() }).superRefine((value, ctx) => { if (value.percentages && Math.abs(Object.values(value.percentages).reduce((sum, item) => sum + item, 0) - 100) > 0.01) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Custom split must total 100%' }); });
 
@@ -56,6 +57,7 @@ export const createApp = () => {
   app.post('/api/planner/collect-preferences', async (req, res, next) => {
     try {
       const input = preferenceCollectionSchema.parse(req.body);
+      if (input.trip) store.hydrate(input.trip as ReturnType<typeof store.getTrip>);
       const currentTrip = store.getTrip();
       const collection = await planner.collectPreferences({ ...input, travelers: currentTrip.travelers, destination: currentTrip.request.destination });
       const trip = store.applyPreferenceCollection(collection);
@@ -63,7 +65,7 @@ export const createApp = () => {
     } catch (error) { next(error); }
   });
   app.post('/api/planner/approve-preferences', (req, res, next) => {
-    try { res.json({ trip: store.applyPreferenceDecision(preferenceDecisionSchema.parse(req.body).interestScores as ReturnType<typeof store.getTrip>['groupPreference']['interestScores']) }); }
+    try { const input = preferenceDecisionSchema.parse(req.body); if (input.trip) store.hydrate(input.trip as ReturnType<typeof store.getTrip>); res.json({ trip: store.applyPreferenceDecision(input.interestScores as ReturnType<typeof store.getTrip>['groupPreference']['interestScores']) }); }
     catch (error) { next(error); }
   });
 
@@ -81,6 +83,10 @@ export const createApp = () => {
   });
   app.post('/api/bookings/hotel', (req, res, next) => {
     try { const input = selectionSchema.parse(req.body); if (input.trip) store.hydrate(input.trip as ReturnType<typeof store.getTrip>); res.json({ trip: store.selectHotel(input.id) }); }
+    catch (error) { next(error); }
+  });
+  app.post('/api/itinerary/complete', (req, res, next) => {
+    try { const input = completeStopSchema.parse(req.body); if (input.trip) store.hydrate(input.trip as ReturnType<typeof store.getTrip>); res.json({ trip: store.completeStop(input.id) }); }
     catch (error) { next(error); }
   });
 
