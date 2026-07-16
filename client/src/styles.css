@@ -17,4 +17,6 @@
   .soft-stat > span { @apply block text-[10px] font-bold uppercase tracking-[0.1em] text-stone-400; }
   .soft-stat > strong { @apply mt-1 block text-sm font-bold text-ink; }
   .paper-grid { background-image: linear-gradient(rgba(36,91,79,.055) 1px, transparent 1px), linear-gradient(90deg, rgba(36,91,79,.055) 1px, transparent 1px); background-size: 22px 22px; }
+  /* The detailed Decision Studio is the single admin approval surface. */
+  .planner-workflow > section:last-child { display: none; }
 }
