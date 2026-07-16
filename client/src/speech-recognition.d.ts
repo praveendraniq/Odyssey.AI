@@ -1,3 +1,5 @@
+/// <reference types="vite/client" />
+
 interface SpeechRecognitionAlternative {
   readonly transcript: string;
   readonly confidence: number;

@@ -1,7 +1,8 @@
-import type { Interest, TripRequest } from '../types.js';
+import { config } from '../config.js';
+import type { Interest, PreferenceCollection, Traveler, TripRequest } from '../types.js';
 
 const defaultRequest: TripRequest = {
-  origin: undefined, destination: 'Japan', departureDate: undefined, returnDate: undefined, departureTime: undefined, duration: 5, travelers: 4, budget: 6000,
+  destination: 'Japan', duration: 5, travelers: 4, budget: 6000,
   travelStyle: 'culture-forward, unhurried', foodPreferences: ['sushi', 'vegetarian friendly'],
   interests: ['culture', 'history', 'food', 'photography'],
 };
@@ -9,40 +10,29 @@ const defaultRequest: TripRequest = {
 const numberWords: Record<string, number> = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 };
 const toNumber = (value: string) => /^\d+$/.test(value) ? Number(value) : numberWords[value.toLowerCase()] ?? 0;
 
-const monthNumbers: Record<string, number> = { january: 0, february: 1, march: 2, april: 3, may: 4, june: 5, july: 6, august: 7, september: 8, october: 9, november: 10, december: 11 };
-const isoDate = (year: number, month: number, day: number) => new Date(Date.UTC(year, month, day)).toISOString().slice(0, 10);
-
 /**
  * Keeps the UI productive without an external model while matching the shape
  * of an eventual Vocal Bridge structured conversation response.
  */
 export class VocalBridgeService {
-  async extractTrip(conversation: string): Promise<{ request: TripRequest; source: 'local-parser'; confidence: number }> {
+  async extractTrip(conversation: string): Promise<{ request: TripRequest; source: 'mock' | 'vocal-bridge'; confidence: number }> {
+    if (!config.mockMode && config.vocalBridge.baseUrl && config.vocalBridge.apiKey) {
+      const response = await fetch(`${config.vocalBridge.baseUrl.replace(/\/$/, '')}/v1/conversations/extract`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.vocalBridge.apiKey}` },
+        body: JSON.stringify({ conversation, schema: 'journeyos.trip_request.v1' }),
+      });
+      if (!response.ok) throw new Error(`Vocal Bridge returned ${response.status}`);
+      const body = await response.json() as { trip?: TripRequest; confidence?: number };
+      if (body.trip) return { request: body.trip, source: 'vocal-bridge', confidence: body.confidence ?? 0.9 };
+    }
+
     const value = conversation.toLowerCase();
     const request = structuredClone(defaultRequest);
-    const route = conversation.match(/(?:from|leaving|departing)\s+([a-z]{3}|[a-z][a-z .'-]+?)\s+(?:to|for)\s+([a-z][a-z .'-]+?)(?=\s+(?:on|for|with|under|at|this|next)|[.,]|$)/i);
-    if (route) {
-      request.origin = route[1].trim().length === 3 ? route[1].trim().toUpperCase() : route[1].trim().replace(/\b\w/g, (letter) => letter.toUpperCase());
-      request.destination = route[2].trim().replace(/\b\w/g, (letter) => letter.toUpperCase());
-    }
-    const destination = value.match(/(?:to|in|visit)\s+([a-z ]+?)(?:\s+(?:for|under|with|this|next)|[.,]|$)/i)?.[1]?.trim();
-    if (destination && !route) request.destination = destination.replace(/\b\w/g, (letter) => letter.toUpperCase());
-    const origin = value.match(/(?:from|leaving|departing)\s+([a-z]{3})(?=\s|[.,]|$)/i)?.[1];
-    if (origin) request.origin = origin.toUpperCase();
-    const explicitDate = value.match(/\b(20\d{2})-(\d{1,2})-(\d{1,2})\b/);
-    const namedDate = value.match(/\b(january|february|march|april|may|june|july|august|september|october|november|december)\s+(\d{1,2})(?:st|nd|rd|th)?(?:,?\s*(20\d{2}))?\b/);
-    if (explicitDate) request.departureDate = `${explicitDate[1]}-${explicitDate[2].padStart(2, '0')}-${explicitDate[3].padStart(2, '0')}`;
-    else if (namedDate) {
-      const now = new Date();
-      const month = monthNumbers[namedDate[1]];
-      let year = namedDate[3] ? Number(namedDate[3]) : now.getFullYear();
-      if (!namedDate[3] && isoDate(year, month, Number(namedDate[2])) < now.toISOString().slice(0, 10)) year += 1;
-      request.departureDate = isoDate(year, month, Number(namedDate[2]));
-    }
-    const returnIso = value.match(/(?:return|back)\s+(?:on\s+)?(20\d{2}-\d{1,2}-\d{1,2})/);
-    if (returnIso) request.returnDate = returnIso[1].replace(/-(\d)(?=-|$)/g, '-0$1');
-    const time = value.match(/(?:at|around)\s+(\d{1,2}(?::\d{2})?\s*(?:a\.?(?:m)\.?|p\.?(?:m)\.?)?)/i)?.[1]?.replace(/\s+/g, ' ').trim();
-    if (time) request.departureTime = time.toUpperCase();
+    const destinationMatch = value.match(/(?:to|in|visit|visiting|as|destination is)\s+([a-z][a-z '-]+?)(?:\s+(?:for|under|with|from|during|and|this|next)\b|[.,]|$)/i)?.[1]?.trim();
+    const knownDestination = ['china', 'japan', 'kyoto', 'tokyo', 'bali', 'thailand', 'bangkok', 'paris', 'france', 'italy', 'rome', 'spain', 'london', 'greece', 'mexico', 'india', 'singapore', 'australia', 'new zealand'].find((place) => new RegExp(`\\b${place}\\b`, 'i').test(value));
+    const destination = destinationMatch ?? knownDestination;
+    if (destination) request.destination = destination.replace(/\b\w/g, (letter) => letter.toUpperCase());
     const duration = value.match(/(\d+|one|two|three|four|five|six|seven|eight|nine|ten)[ -]?day/);
     if (duration) request.duration = toNumber(duration[1]);
     const people = value.match(/(?:for|with)\s+(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+(?:people|travelers|friends|adults)/);
@@ -61,6 +51,62 @@ export class VocalBridgeService {
     if (/slow|relax|easy/.test(value)) request.travelStyle = 'slow, restorative';
     if (/fast|packed|adventure/.test(value)) request.travelStyle = 'high-energy exploration';
     if (/vegetarian|vegan/.test(value)) request.foodPreferences = ['vegetarian friendly', ...request.foodPreferences.filter((food) => food !== 'vegetarian friendly')];
-    return { request, source: 'local-parser', confidence: 0.94 };
+    const confidence = Math.min(0.97, 0.58
+      + (destination ? 0.1 : 0)
+      + (duration ? 0.08 : 0)
+      + (people ? 0.07 : 0)
+      + (budget ? 0.07 : 0)
+      + (extracted.length ? 0.05 : 0)
+      + (/vegetarian|vegan|allergy|shellfish|gluten/.test(value) ? 0.03 : 0));
+    return { request, source: 'mock', confidence: Number(confidence.toFixed(2)) };
+  }
+
+  async collectPreferences(input: { adminName: string; adminPhone: string; phones: Record<string, string>; travelers: Traveler[]; destination: string }): Promise<PreferenceCollection> {
+    const participants = input.travelers.filter((traveler) => traveler.name !== input.adminName);
+    if (!config.mockMode && config.vocalBridge.baseUrl && config.vocalBridge.apiKey && config.vocalBridge.agentId) {
+      const response = await fetch(`${config.vocalBridge.baseUrl.replace(/\/$/, '')}/v1/calls/group-preferences`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.vocalBridge.apiKey}` },
+        body: JSON.stringify({
+          agentId: config.vocalBridge.agentId,
+          admin: { name: input.adminName, phone: input.adminPhone, priorityWeight: 1.5 },
+          destination: input.destination,
+          travelers: participants.map((traveler) => ({ id: traveler.id, name: traveler.name, phone: input.phones[traveler.id] })),
+          prompt: 'Discuss the planned trip, ask for priorities and constraints, and suggest a fair compromise that preserves the admin’s priorities first.',
+        }),
+      });
+      if (!response.ok) throw new Error(`Vocal Bridge returned ${response.status}`);
+      const body = await response.json() as Partial<PreferenceCollection>;
+      if (body.calls?.length) return { ...body, adminName: input.adminName, adminWeight: body.adminWeight ?? 1.5, source: 'vocal-bridge', negotiation: body.negotiation ?? 'Preferences collected for review.', approvalSummary: body.approvalSummary ?? 'Review the proposed group plan.' } as PreferenceCollection;
+    }
+
+    const calls = participants.map((traveler, index) => {
+      const priorities = Object.entries(traveler.interests).sort(([, a], [, b]) => b - a).slice(0, 2).map(([interest]) => interest);
+      const adminPriority = 'a protected culture-and-history morning';
+      const travelerTrade = `${priorities[0]} time and a ${traveler.pacePreference} pace`;
+      return {
+        travelerId: traveler.id,
+        name: traveler.name,
+        phone: input.phones[traveler.id] || (index === 0 ? '+1 (415) 555-0148' : index === 1 ? '+1 (415) 555-0172' : '+1 (415) 555-0196'),
+        status: 'completed' as const,
+        summary: `${traveler.name} wants ${priorities.join(' and ')}, with a ${traveler.pacePreference} pace and ${traveler.foodPreference.toLowerCase()} options.`,
+        happiness: [88, 84, 86][index] ?? 85,
+        topPriorities: priorities,
+        compromise: `Keeps a ${priorities[0]} highlight while reserving open time for ${input.adminName}'s culture-led itinerary.`,
+        dialogue: [
+          { speaker: 'agent' as const, text: `${traveler.name}, your ${priorities[0]} preference matters. ${input.adminName}'s non-negotiable is ${adminPriority}. Would you support that if I protect ${travelerTrade} later the same day?` },
+          { speaker: 'traveler' as const, text: `Yes—if the ${priorities[0]} stop is genuinely protected and the schedule does not feel rushed.` },
+          { speaker: 'agent' as const, text: `Agreed. I will lock that trade-off into the proposal and show it explicitly to the admin before the itinerary changes.` },
+        ],
+      };
+    });
+    return {
+      adminName: input.adminName,
+      adminWeight: 1.5,
+      source: 'mock',
+      calls,
+      negotiation: `${input.adminName}'s culture and history priorities lead the plan. The group accepts a balanced pace, with food, photography, and nature moments placed near the core cultural route.`,
+      approvalSummary: `A ${input.destination} plan is ready: it protects ${input.adminName}'s top priorities while keeping every traveler at 84% happiness or above.`,
+    };
   }
 }

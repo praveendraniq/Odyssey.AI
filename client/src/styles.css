@@ -3,6 +3,17 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Group calls and negotiation now live in the dedicated, editable planning
+   workflow directly below the voice brief. Hide the legacy embedded panels. */
+.planner-workflow > section:nth-child(n + 4) {
+  display: none;
+}
+
+/* Variable expenses and settlement now have their own top-level workspace. */
+section[class*="rounded-[24px]"][class*="border-stone-200"][class*="p-5"] {
+  display: none;
+}
+
 @layer base {
   * { @apply border-stone-200; }
   body { @apply m-0 bg-cream font-sans antialiased; font-family: 'Manrope', sans-serif; }
@@ -17,8 +28,6 @@
   .soft-stat > span { @apply block text-[10px] font-bold uppercase tracking-[0.1em] text-stone-400; }
   .soft-stat > strong { @apply mt-1 block text-sm font-bold text-ink; }
   .paper-grid { background-image: linear-gradient(rgba(36,91,79,.055) 1px, transparent 1px), linear-gradient(90deg, rgba(36,91,79,.055) 1px, transparent 1px); background-size: 22px 22px; }
-  .booking-screen > div:last-child > section:nth-child(2) > div:first-child > div:first-child > div:first-child > h2 { display: none; }
-  .booking-screen > div:last-child > section:nth-child(2) > div:first-child > div:first-child > div:first-child > .eyebrow { font-size: 0; }
-  .booking-screen > div:last-child > section:nth-child(2) > div:first-child > div:first-child > div:first-child > .eyebrow::after { content: 'Live Sabre'; font-size: 10px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; color: #a8a29e; }
-  header > div > div:last-child > button:first-child { display: none; }
+  /* The detailed Decision Studio is the single admin approval surface. */
+  .planner-workflow > section:last-child { display: none; }
 }

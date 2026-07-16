@@ -7,7 +7,8 @@
     "dev": "concurrently -n api,web -c cyan,magenta \"pnpm --dir server dev\" \"pnpm --dir client dev\"",
     "build": "pnpm --dir server build && pnpm --dir client build",
     "start": "pnpm --dir server start",
-    "lint": "pnpm --dir server typecheck && pnpm --dir client typecheck"
+    "lint": "pnpm --dir server typecheck && pnpm --dir client typecheck",
+    "test": "pnpm --dir server test"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"
