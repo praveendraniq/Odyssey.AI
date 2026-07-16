@@ -4,11 +4,14 @@
   "version": "0.1.0",
   "description": "JourneyOS hackathon MVP - AI travel operating system",
   "scripts": {
-    "dev": "concurrently -n api,web -c cyan,magenta \"pnpm --dir server dev\" \"pnpm --dir client dev\"",
-    "build": "pnpm --dir server build && pnpm --dir client build",
-    "start": "pnpm --dir server start",
-    "lint": "pnpm --dir server typecheck && pnpm --dir client typecheck",
-    "test": "pnpm --dir server test"
+    "setup": "npm install --cache .npm-cache && npm --prefix server install --cache .npm-cache && npm --prefix client install --cache .npm-cache",
+    "dev": "concurrently -n api,web -c cyan,magenta \"npm --prefix server run dev\" \"npm --prefix client run dev\"",
+    "dev:api": "npm --prefix server run dev",
+    "dev:web": "npm --prefix client run dev",
+    "build": "npm --prefix server run build && npm --prefix client run build",
+    "start": "npm --prefix server run start",
+    "lint": "npm --prefix server run typecheck && npm --prefix client run typecheck",
+    "test": "npm --prefix server run test"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"
