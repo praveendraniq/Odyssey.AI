@@ -19,7 +19,10 @@ export class GooglePlacesService {
       },
       body: JSON.stringify({ textQuery: `popular visitor attractions and sights in ${destination}`, languageCode: 'en', maxResultCount: Math.min(Math.max(limit, 2), 20) }),
     });
-    if (!response.ok) throw new Error(`Google Places search returned ${response.status}`);
+    if (!response.ok) {
+      const detail = (await response.text()).slice(0, 240);
+      throw new Error(`Google Places search returned ${response.status}${detail ? `: ${detail}` : ''}`);
+    }
     const body = await response.json() as { places?: Array<{ id?: string; displayName?: { text?: string }; formattedAddress?: string }> };
     return (body.places ?? [])
       .filter((place) => place.displayName?.text && place.formattedAddress)

@@ -41,10 +41,15 @@ export const createApp = () => {
       const { conversation } = requestSchema.parse(req.body);
       const result = await planner.extractTrip(conversation);
       let attractions: PlaceAttraction[] = [];
+      let placesDiagnostic: string | undefined;
       try { attractions = await places.searchAttractions(result.request.destination, result.request.duration * 3); }
-      catch (error) { console.warn('Google Places unavailable; using curated itinerary.', error instanceof Error ? error.message : error); }
+      catch (error) {
+        placesDiagnostic = error instanceof Error ? error.message : 'Google Places request failed';
+        console.warn('Google Places unavailable; using curated itinerary.', placesDiagnostic);
+      }
       const trip = store.updateFromRequest(result.request, attractions);
-      res.json({ ...result, trip, itinerarySource: attractions.length >= 2 ? 'google-places' : 'curated-fallback', summary: `${result.request.duration} days in ${result.request.destination} for ${result.request.travelers} travelers, with a $${result.request.budget.toLocaleString()} budget.` });
+      const itinerarySource = attractions.length >= 2 ? 'google-places' : 'curated-fallback';
+      res.json({ ...result, trip, itinerarySource, placesDiagnostic: placesDiagnostic ?? (itinerarySource === 'curated-fallback' ? 'Google Places returned fewer than two attractions.' : undefined), summary: `${result.request.duration} days in ${result.request.destination} for ${result.request.travelers} travelers, with a $${result.request.budget.toLocaleString()} budget.` });
     } catch (error) { next(error); }
   });
   app.post('/api/planner/collect-preferences', async (req, res, next) => {
