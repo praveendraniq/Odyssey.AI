@@ -77,7 +77,7 @@ The checked-in configuration enables Vocal Bridge **AI agent integration mode**.
 `MOCK_MODE=true` is the default: no account, key, or internet access is needed for the polished demo. Set it to `false` and configure credentials to activate the service adapters.
 
 - `SabreService` requests Sabre OAuth and normalizes flight and hotel results.
-- Sabre sandbox requests use hackathon PCC `S5OM` (uppercase letter `O`) through `SABRE_PCC`; Sabre APIs with a `POS.Source` payload must send it as `PseudoCityCode`.
+- Sabre hackathon test requests use `https://api-crt.cert.havail.sabre.com` and PCC `S5OM` (uppercase letter `O`) through `SABRE_PCC`; Sabre APIs with a `POS.Source` payload must send it as `PseudoCityCode`.
 - The sandbox adapter uses OAuth v2: it exchanges `SABRE_CLIENT_ID` and `SABRE_CLIENT_SECRET` server-side, caches the bearer token with expiry metadata, and renews it one minute before expiry. Do not save a temporary `access_token` in `.env`.
 - `PayPalService` uses PayPal Orders APIs when credentials are present; otherwise it creates a mock order that can be captured by the demo UI.
 - `POST /api/voice-token` securely exchanges the server-side Vocal Bridge key for a short-lived browser session token.

@@ -15,7 +15,7 @@ export const config = {
   sabre: {
     clientId: process.env.SABRE_CLIENT_ID,
     clientSecret: process.env.SABRE_CLIENT_SECRET,
-    baseUrl: process.env.SABRE_BASE_URL ?? 'https://api.cert.platform.sabre.com',
+    baseUrl: process.env.SABRE_BASE_URL ?? 'https://api-crt.cert.havail.sabre.com',
     pcc: sabrePcc,
     oauthVersion: sabreOauthVersion,
   },
