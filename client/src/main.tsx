@@ -6,7 +6,7 @@ import './styles.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <VocalBridgeProvider options={{ auth: { tokenUrl: '/api/voice-token' }, participantName: 'JourneyOS traveler' }}>
+    <VocalBridgeProvider options={{ auth: { tokenUrl: '/api/voice-token' }, participantName: 'JourneyOS traveler', debug: true }}>
       <App />
     </VocalBridgeProvider>
   </React.StrictMode>,

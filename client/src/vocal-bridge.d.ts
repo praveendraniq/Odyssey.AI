@@ -3,7 +3,7 @@ declare module '@vocalbridgeai/react' {
 
   export interface VocalBridgeError { code: string; message: string; }
   export interface TranscriptEntry { role: 'user' | 'agent'; text: string; timestamp: number; }
-  export type ConnectionState = 'disconnected' | 'connecting' | 'waiting_for_agent' | 'connected';
+  export type ConnectionState = 'disconnected' | 'connecting' | 'waiting_for_agent' | 'connected' | 'reconnecting' | 'disconnecting';
 
   export function VocalBridgeProvider(props: { children: ReactNode; options: { auth: { tokenUrl: string }; participantName?: string; debug?: boolean } }): JSX.Element;
   export function useVocalBridge(): {

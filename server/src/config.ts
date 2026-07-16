@@ -13,13 +13,15 @@ export const config = {
   clientOrigin: process.env.CLIENT_ORIGIN ?? 'http://localhost:5173',
   mockMode: bool(process.env.MOCK_MODE, true),
   sabre: {
-    // OAuth v2 Test credentials are shown in Dev Studio as User ID / Password.
-    // The old CLIENT_* aliases remain supported for existing local setups.
+    // OAuth v2 uses the Developer Hub EPR User ID and its Password.
+    // CLIENT_* aliases are retained for existing local .env files.
     eprUsername: process.env.SABRE_EPR_USERNAME ?? process.env.SABRE_CLIENT_ID,
     eprPassword: process.env.SABRE_EPR_PASSWORD ?? process.env.SABRE_CLIENT_SECRET,
     baseUrl: process.env.SABRE_BASE_URL ?? 'https://api.cert.platform.sabre.com',
     pcc: sabrePcc,
     oauthVersion: sabreOauthVersion,
+    accessToken: process.env.SABRE_ACCESS_TOKEN,
+    mcpUrl: process.env.SABRE_MCP_URL ?? 'https://mcp2.cert.sabre.com/mcp',
   },
   paypal: {
     clientId: process.env.PAYPAL_CLIENT_ID,

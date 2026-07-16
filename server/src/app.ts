@@ -38,8 +38,8 @@ export const createApp = () => {
       ok: true,
       mockMode: config.mockMode,
       integrations: {
-        vocalBridge: Boolean(config.vocalBridge.apiKey),
-        sabre: Boolean(config.sabre.eprUsername && config.sabre.eprPassword),
+        vocalBridge: Boolean(config.vocalBridge.apiKey && config.vocalBridge.agentId),
+        sabre: Boolean(config.sabre.accessToken || (config.sabre.eprUsername && config.sabre.eprPassword)),
         paypal: Boolean(config.paypal.clientId && config.paypal.clientSecret),
       },
     }),
@@ -69,7 +69,12 @@ export const createApp = () => {
         body: JSON.stringify({ participant_name: input.participant_name ?? 'JourneyOS traveler', ...(input.session_id ? { session_id: input.session_id } : {}) }),
       });
       if (!response.ok) {
-        const messages: Record<number, string> = { 401: 'Vocal Bridge rejected the API key.', 403: 'Vocal Bridge usage is not enabled for this account.', 404: 'The configured Vocal Bridge agent was not found.' };
+        const messages: Record<number, string> = {
+          400: 'Vocal Bridge requires a deployed agent ID. Set VOCAL_BRIDGE_AGENT_ID on the server.',
+          401: 'Vocal Bridge rejected the API key.',
+          403: 'Vocal Bridge usage is not enabled for this account.',
+          404: 'The configured Vocal Bridge agent was not found.',
+        };
         return res.status(response.status).json({ error: messages[response.status] ?? `Vocal Bridge token request failed with status ${response.status}.` });
       }
       res.json(await response.json());

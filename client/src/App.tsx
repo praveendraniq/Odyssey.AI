@@ -115,15 +115,15 @@ function TripOverview({ trip, setPage, activeDay, setActiveDay, onReceipt }: { t
 }
 
 function VoicePlanner({ trip, onTrip, setPage }: { trip: Trip; onTrip: (trip: Trip, note: string) => void; setPage: (page: Page) => void }) {
-  const sampleVoiceCommand = 'Plan a 5-day Japan trip for four people under $6,000. We love temples, food, history, and photography.';
-  const [conversation, setConversation] = useState(sampleVoiceCommand);
+  const [conversation, setConversation] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{ confidence: number; source: string; summary: string } | null>(null);
+  const [voiceConnectionError, setVoiceConnectionError] = useState<string | null>(null);
   const { state, connect, disconnect, isMicrophoneEnabled, toggleMicrophone, agentMode, error } = useVocalBridge();
   const { transcript, clear } = useTranscript();
   const { onAction, sendAction } = useAgentActions();
   const connected = state === 'connected';
-  const changingConnection = state === 'connecting' || state === 'waiting_for_agent';
+  const changingConnection = state === 'connecting' || state === 'waiting_for_agent' || state === 'reconnecting';
 
   const answerAgentQuery = useCallback(async (query: string) => {
     const response = await api.queryAgents(query);
@@ -146,13 +146,18 @@ function VoicePlanner({ trip, onTrip, setPage }: { trip: Trip; onTrip: (trip: Tr
     if (state === 'disconnected') {
       clear();
       setConversation('');
-      await connect();
+      setVoiceConnectionError(null);
+      try {
+        await connect();
+      } catch (cause) {
+        setVoiceConnectionError(cause instanceof Error ? cause.message : 'Voice session could not connect.');
+      }
     } else await disconnect();
   };
   const createPlan = async () => {
     setLoading(true);
     try {
-      const response = await api.extractPlan(conversation || sampleVoiceCommand);
+      const response = await api.extractPlan(conversation);
       setResult(response);
       onTrip(response.trip, 'Voice brief structured into a living trip plan.');
       await sendAction('trip_plan_created', { summary: response.summary });
@@ -160,9 +165,9 @@ function VoicePlanner({ trip, onTrip, setPage }: { trip: Trip; onTrip: (trip: Tr
     finally { setLoading(false); }
   };
   const extracted = trip.request;
-  const statusLabel = changingConnection ? 'Connecting to your voice agent…' : connected ? 'Voice agent connected' : 'Ready for a voice session';
+  const statusLabel = state === 'reconnecting' ? 'Reconnecting to your voice agent…' : changingConnection ? 'Connecting to your voice agent…' : connected ? 'Voice agent connected' : 'Ready for a voice session';
   return <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
-    <section className="relative overflow-hidden rounded-[32px] bg-[#eff6f1] px-6 py-8 sm:px-10"><div className="relative z-10"><p className="eyebrow text-moss">Vocal Bridge live session</p><h1 className="mt-2 font-display text-4xl leading-[0.95] text-ink sm:text-5xl">Tell us where the story goes.</h1><p className="mt-4 max-w-md text-sm leading-6 text-stone-600">Speak naturally. Vocal Bridge handles the live conversation while the Journey Orchestrator delegates planning work to specialist agents.</p><div className="mt-8 flex flex-col items-center"><button type="button" onClick={() => void toggleSession()} disabled={changingConnection} aria-pressed={connected} aria-label={connected ? 'End voice session' : 'Start voice session'} className={`grid h-36 w-36 place-items-center rounded-full border-[10px] border-white shadow-xl transition disabled:cursor-wait disabled:opacity-70 ${connected ? 'bg-coral text-white animate-pulse' : 'bg-moss text-white hover:scale-105'}`}><Mic size={42} /></button><p className="mt-4 text-sm font-bold text-ink">{connected ? 'End voice session' : changingConnection ? 'Connecting…' : 'Start voice session'}</p><p role="status" aria-live="polite" className="mt-2 max-w-sm text-center text-xs leading-5 text-stone-500">{statusLabel}</p>{connected && <button type="button" onClick={() => void toggleMicrophone()} aria-pressed={!isMicrophoneEnabled} className="mt-3 rounded-full bg-white px-3 py-1.5 text-xs font-bold text-moss ring-1 ring-moss/15">{isMicrophoneEnabled ? 'Mute microphone' : 'Unmute microphone'}</button>}{error && <p role="alert" className="mt-3 max-w-sm text-center text-xs font-semibold text-coral">{error.code === 'MICROPHONE_ERROR' ? 'Microphone access was blocked. Allow it in site settings and try again.' : error.message}</p>}<p className="mt-3 text-[10px] font-bold uppercase tracking-wider text-moss/60">{__VOCAL_BRIDGE_SDK_AVAILABLE__ ? `Vocal Bridge · ${agentMode ?? 'WebRTC'}` : 'Offline fallback · install Vocal Bridge packages for WebRTC'}</p></div></div><div className="absolute -bottom-12 -right-12 h-60 w-60 rounded-full border-[24px] border-[#d3e8d8]" /></section>
+    <section className="relative overflow-hidden rounded-[32px] bg-[#eff6f1] px-6 py-8 sm:px-10"><div className="relative z-10"><p className="eyebrow text-moss">Vocal Bridge live session</p><h1 className="mt-2 font-display text-4xl leading-[0.95] text-ink sm:text-5xl">Tell us where the story goes.</h1><p className="mt-4 max-w-md text-sm leading-6 text-stone-600">Speak naturally. Vocal Bridge handles the live conversation while the Journey Orchestrator delegates planning work to specialist agents.</p><div className="mt-8 flex flex-col items-center"><button type="button" onClick={() => void toggleSession()} disabled={changingConnection} aria-pressed={connected} aria-label={connected ? 'End voice session' : 'Start voice session'} className={`grid h-36 w-36 place-items-center rounded-full border-[10px] border-white shadow-xl transition disabled:cursor-wait disabled:opacity-70 ${connected ? 'bg-coral text-white animate-pulse' : 'bg-moss text-white hover:scale-105'}`}><Mic size={42} /></button><p className="mt-4 text-sm font-bold text-ink">{connected ? 'End voice session' : changingConnection ? 'Connecting…' : 'Start voice session'}</p><p role="status" aria-live="polite" className="mt-2 max-w-sm text-center text-xs leading-5 text-stone-500">{statusLabel}</p>{connected && <button type="button" onClick={() => void toggleMicrophone()} aria-pressed={!isMicrophoneEnabled} className="mt-3 rounded-full bg-white px-3 py-1.5 text-xs font-bold text-moss ring-1 ring-moss/15">{isMicrophoneEnabled ? 'Mute microphone' : 'Unmute microphone'}</button>}{(error || voiceConnectionError) && <p role="alert" className="mt-3 max-w-sm text-center text-xs font-semibold text-coral">{error?.code === 'MICROPHONE_ERROR' ? 'Microphone access was blocked. Allow it in site settings and try again.' : error?.message ?? voiceConnectionError}</p>}<p className="mt-3 text-[10px] font-bold uppercase tracking-wider text-moss/60">{__VOCAL_BRIDGE_SDK_AVAILABLE__ ? `Vocal Bridge · ${agentMode ?? 'WebRTC'}` : 'Offline fallback · install Vocal Bridge packages for WebRTC'}</p></div></div><div className="absolute -bottom-12 -right-12 h-60 w-60 rounded-full border-[24px] border-[#d3e8d8]" /></section>
     <section className="rounded-[32px] border border-stone-200 bg-white p-6 sm:p-8"><div className="flex items-center justify-between"><div><p className="eyebrow">Live transcript</p><h2 className="mt-1 text-xl font-bold text-ink">Your travel brief</h2></div><Headphones className="text-moss" /></div>{transcript.length > 0 && <ol aria-live="polite" aria-relevant="additions" className="mt-5 max-h-48 space-y-2 overflow-y-auto rounded-2xl bg-stone-50 p-3">{transcript.map((entry, index) => <li key={`${entry.timestamp}-${index}`} className="text-xs leading-5"><b className={entry.role === 'user' ? 'text-moss' : 'text-coral'}>{entry.role === 'user' ? 'You' : 'JourneyOS'}:</b> <span className="text-stone-600">{entry.text}</span></li>)}</ol>}<label className="sr-only" htmlFor="trip-conversation">Trip request</label><textarea id="trip-conversation" value={conversation} onChange={(event) => setConversation(event.target.value)} placeholder="Your spoken request appears here…" className="mt-5 min-h-32 w-full resize-none rounded-2xl border border-stone-200 bg-stone-50 p-4 text-sm leading-6 text-ink outline-none transition focus:border-moss focus:ring-4 focus:ring-moss/10" /><div className="mt-4 flex gap-2"><button onClick={() => void createPlan()} disabled={loading || !conversation.trim()} className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-ink px-4 py-3.5 text-sm font-bold text-white transition hover:bg-moss disabled:cursor-wait disabled:opacity-70"><Sparkles size={17} />{loading ? 'Understanding your trip…' : 'Create my trip brief'}</button>{transcript.length > 0 && <button type="button" onClick={clear} className="rounded-2xl bg-stone-100 px-4 text-xs font-bold text-stone-600">Clear</button>}</div>{result && <p className="mt-3 text-center text-xs font-semibold text-moss">Local trip extraction · {Math.round(result.confidence * 100)}% confidence</p>}</section>
     <section className="rounded-[32px] border border-stone-200 bg-white p-6 xl:col-span-2"><div className="flex flex-wrap items-end justify-between gap-4"><div><p className="eyebrow">Structured output</p><h2 className="mt-1 text-xl font-bold text-ink">The agent network heard the important things.</h2></div><span className="rounded-full bg-[#eff6f1] px-3 py-1.5 text-xs font-bold text-moss">{extracted.travelStyle}</span></div><div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><div className="soft-stat"><span>Destination</span><strong>{extracted.destination}</strong></div><div className="soft-stat"><span>Time together</span><strong>{extracted.duration} days</strong></div><div className="soft-stat"><span>Group size</span><strong>{extracted.travelers} travelers</strong></div><div className="soft-stat"><span>Shared budget</span><strong>{money(extracted.budget)}</strong></div></div><div className="mt-5 flex flex-wrap gap-2">{extracted.interests.map((interest) => <span className="rounded-full bg-sand px-3 py-1.5 text-xs font-bold capitalize text-ink" key={interest}>{interest}</span>)}{extracted.foodPreferences.map((food) => <span className="rounded-full bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-700" key={food}>{food}</span>)}</div></section>
   </div>;
