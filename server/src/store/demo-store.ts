@@ -30,6 +30,30 @@ const itinerary: ItineraryItem[] = [
   route('i-kiyomizu', 5, '09:30', 'Kiyomizu-dera', 'Higashiyama · Kyoto', 'culture', 105, 25, 51, 31, 'upcoming', true),
 ];
 
+const itineraryFor = (destination: string): ItineraryItem[] => {
+  const place = destination.toLowerCase();
+  if (place.includes('india')) return [
+    route('india-arrival', 1, '14:00', 'Arrive in Delhi', 'Delhi · India', 'transport', 20, 45, 75, 50, 'current'),
+    route('india-market', 1, '18:00', 'Old Delhi food walk', 'Chandni Chowk · Delhi', 'food', 55, 58, 75, 90, 'upcoming'),
+    route('india-fort', 2, '09:00', 'Red Fort & heritage walk', 'Old Delhi · India', 'culture', 75, 62, 35, 45, 'upcoming', true),
+    route('india-museum', 2, '14:30', 'National Museum', 'Janpath · Delhi', 'museum', 100, 25, 70, 55, 'upcoming'),
+    route('india-agra', 3, '07:00', 'Train to Agra', 'Delhi → Agra · India', 'transport', 150, 20, 62, 80, 'upcoming'),
+    route('india-taj', 3, '11:00', 'Taj Mahal', 'Agra · India', 'culture', 110, 30, 54, 48, 'upcoming', true),
+    route('india-bazaar', 4, '10:00', 'Jaipur artisan bazaar', 'Jaipur · India', 'experience', 90, 55, 42, 62, 'upcoming'),
+    route('india-palace', 4, '15:30', 'Amber Fort', 'Jaipur · India', 'culture', 105, 35, 32, 42, 'upcoming', true),
+    route('india-farewell', 5, '18:00', 'Farewell dinner', 'Jaipur · India', 'food', 100, 25, 60, 70, 'upcoming'),
+  ];
+  return [
+    route('arrival', 1, '14:00', `Arrive in ${destination}`, `${destination}`, 'transport', 20, 45, 75, 50, 'current'),
+    route('welcome', 1, '18:00', 'Neighborhood welcome dinner', `${destination}`, 'food', 55, 58, 75, 90, 'upcoming'),
+    route('highlight', 2, '09:00', 'Signature local landmark', `${destination}`, 'culture', 75, 62, 35, 45, 'upcoming', true),
+    route('food', 2, '14:30', 'Local food experience', `${destination}`, 'food', 100, 25, 70, 55, 'upcoming'),
+    route('daytrip', 3, '09:00', 'Scenic day trip', `${destination}`, 'nature', 150, 20, 62, 80, 'upcoming', true),
+    route('culture', 4, '10:00', 'Culture and craft trail', `${destination}`, 'experience', 105, 35, 32, 42, 'upcoming'),
+    route('farewell', 5, '18:00', 'Farewell dinner', `${destination}`, 'food', 100, 25, 60, 70, 'upcoming'),
+  ];
+};
+
 const groupPreference: GroupPreference = {
   interestScores: { culture: 4.75, history: 3.5, food: 4.25, photography: 3.5, shopping: 2, nightlife: 2.25, nature: 3.25 },
   recommendedPace: 'Balanced discovery',
@@ -93,10 +117,28 @@ export class DemoStore {
   updateFromRequest(request: Trip['request']): Trip {
     this.trip.request = { ...this.trip.request, ...request };
     this.trip.name = `${request.destination}, together`;
+    this.trip.itinerary = itineraryFor(request.destination);
+    this.trip.events = [{ id: `brief-${Date.now()}`, type: 'tired', title: `${request.destination} trip brief created`, createdAt: new Date().toISOString(), explanation: `Your ${request.duration}-day ${request.destination} itinerary is ready to review. Every page now reflects this proposed trip.` }];
+    this.trip.groupPreference = { ...this.trip.groupPreference, explanation: `The ${request.destination} route prioritizes ${request.interests.slice(0, 3).join(', ')} while keeping the group’s preferred pace.` };
+    this.trip.preferenceCollection = undefined;
     return this.getTrip();
   }
 
   replan(type: TripEvent['type']): Trip {
+    if (!this.trip.request.destination.toLowerCase().includes('japan')) {
+      const next = this.trip.itinerary.find((item) => item.status === 'upcoming');
+      const updates: Record<TripEvent['type'], { title: string; explanation: string }> = {
+        late: { title: 'Running late +90 minutes', explanation: `JourneyOS moved the next ${this.trip.request.destination} stop later and protected the group’s highest-priority experience.` },
+        rain: { title: 'Heavy rain forecast', explanation: `JourneyOS swapped the next outdoor ${this.trip.request.destination} moment for an indoor cultural option and kept travel time low.` },
+        'flight-delay': { title: 'Flight delayed by 2 hours', explanation: `JourneyOS shortened the arrival-day plan in ${this.trip.request.destination} and held the next confirmed experience.` },
+        closed: { title: 'Attraction closed', explanation: `JourneyOS replaced the unavailable ${this.trip.request.destination} stop with a nearby option that matches the group’s interests.` },
+        tired: { title: 'Traveler energy is low', explanation: `JourneyOS reduced walking in ${this.trip.request.destination} while preserving one meaningful group highlight.` },
+      };
+      if (next) Object.assign(next, { time: type === 'late' || type === 'flight-delay' ? '16:00' : next.time, durationMins: type === 'tired' ? Math.min(next.durationMins, 60) : next.durationMins, status: 'moved' as const });
+      const update = updates[type];
+      this.trip.events.unshift({ id: `event-${Date.now()}`, type, title: update.title, createdAt: new Date().toISOString(), explanation: update.explanation });
+      return this.getTrip();
+    }
     const changes: Record<TripEvent['type'], { title: string; explanation: string; mutate: () => void }> = {
       late: {
         title: 'Running late +90 minutes',

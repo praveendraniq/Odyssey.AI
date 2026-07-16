@@ -58,6 +58,7 @@ function DayPills({ trip, activeDay, setActiveDay }: { trip: Trip; activeDay: nu
 function RouteMap({ trip, activeDay, onSelect }: { trip: Trip; activeDay: number; onSelect: (item: ItineraryItem) => void }) {
   const allItems = trip.itinerary.filter((item) => item.day === activeDay);
   const points = allItems.map((item) => `${item.location.x},${item.location.y}`).join(' ');
+  if (import.meta.env.VITE_GOOGLE_MAPS_API_KEY) return <LiveGoogleMap trip={trip} activeDay={activeDay} />;
   return <><div className="paper-grid relative min-h-[360px] overflow-hidden rounded-[28px] border border-[#d9ded8] bg-[#e9f0ec]">
     <div className="absolute -left-10 top-7 h-48 w-72 rotate-[-10deg] rounded-[50%] bg-[#c4d8c8] opacity-65" />
     <div className="absolute -right-16 bottom-0 h-72 w-80 rotate-[20deg] rounded-[45%] bg-[#c6d9c6] opacity-70" />
@@ -75,14 +76,20 @@ function RouteMap({ trip, activeDay, onSelect }: { trip: Trip; activeDay: number
         <span className="pointer-events-none absolute left-5 top-1/2 hidden w-32 -translate-y-1/2 rounded-lg bg-ink px-2.5 py-2 text-[10px] font-semibold leading-tight text-white shadow-xl group-hover:block"><span className="block text-white/60">{meta.label} · {item.time}</span>{item.title}</span>
       </button>;
     })}
-  </div><LiveGoogleMap /></>;
+  </div><LiveGoogleMap trip={trip} activeDay={activeDay} /></>;
 }
 
-function LiveGoogleMap() {
+function LiveGoogleMap({ trip, activeDay }: { trip: Trip; activeDay: number }) {
   const key = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined;
   if (!key || key.includes('PASTE_YOUR') || key.includes('your_key')) return null;
-  const src = `https://www.google.com/maps/embed/v1/directions?key=${encodeURIComponent(key)}&origin=Tokyo%2C%20Japan&destination=Kyoto%2C%20Japan&mode=transit`;
-  return <section className="mt-4 overflow-hidden rounded-[28px] border border-stone-200 bg-white"><div className="flex items-center justify-between gap-3 px-5 py-4"><div><p className="eyebrow">Live map view</p><h3 className="mt-1 text-lg font-bold text-ink">Tokyo → Kyoto, on Google Maps</h3></div><a href="https://www.google.com/maps/dir/Tokyo,+Japan/Kyoto,+Japan" target="_blank" rel="noreferrer" className="text-xs font-bold text-moss hover:text-ink">Open full map ↗</a></div><iframe title="Google Maps directions from Tokyo to Kyoto" src={src} className="h-64 w-full border-0 sm:h-80" loading="lazy" referrerPolicy="strict-origin-when-cross-origin" allowFullScreen /></section>;
+  const stops = trip.itinerary.filter((item) => item.day === activeDay);
+  const locations = stops.map((item) => `${item.title}, ${trip.request.destination}`);
+  const origin = locations[0] ?? trip.request.destination;
+  const destination = locations[locations.length - 1] ?? trip.request.destination;
+  const waypoints = locations.slice(1, -1).join('|');
+  const src = `https://www.google.com/maps/embed/v1/directions?key=${encodeURIComponent(key)}&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&waypoints=${encodeURIComponent(waypoints)}&mode=transit`;
+  const mapsUrl = `https://www.google.com/maps/dir/${locations.map(encodeURIComponent).join('/')}`;
+  return <section className="overflow-hidden rounded-[28px] border border-stone-200 bg-white"><div className="flex items-center justify-between gap-3 px-5 py-4"><div><p className="eyebrow">Interactive day route</p><h3 className="mt-1 text-lg font-bold text-ink">Day {activeDay} · {trip.request.destination}</h3></div><a href={mapsUrl} target="_blank" rel="noreferrer" className="text-xs font-bold text-moss hover:text-ink">Open full map ↗</a></div><iframe title={`Google Maps itinerary for day ${activeDay} in ${trip.request.destination}`} src={src} className="h-80 w-full border-0" loading="lazy" referrerPolicy="strict-origin-when-cross-origin" allowFullScreen /></section>;
 }
 
 function Timeline({ items, compact = false }: { items: ItineraryItem[]; compact?: boolean }) {
@@ -103,7 +110,7 @@ function TripOverview({ trip, setPage, activeDay, setActiveDay, onReceipt }: { t
   const budgetPercent = Math.min(100, (trip.budget.spent / trip.budget.total) * 100);
   return <div className="space-y-6">
     <section className="relative overflow-hidden rounded-[32px] bg-ink px-7 py-8 text-white shadow-glow sm:px-10">
-      <div className="relative z-10 max-w-xl"><div className="mb-5 inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold text-emerald-100"><span className="h-2 w-2 rounded-full bg-[#8fe0b7]" /> Live trip command center</div><h1 className="font-display text-4xl leading-none sm:text-5xl">Japan, together.</h1><p className="mt-4 max-w-md text-sm leading-6 text-white/70">One conversation turned into a route built around every person, with the room to change when travel does.</p><div className="mt-7 flex flex-wrap gap-3"><button onClick={() => setPage('map')} className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2.5 text-xs font-bold text-ink transition hover:bg-emerald-50"><MapPinned size={15} /> Explore the route</button><button onClick={() => setPage('operations')} className="inline-flex items-center gap-2 rounded-full border border-white/20 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-white/10"><Zap size={15} /> Test a disruption</button></div></div>
+      <div className="relative z-10 max-w-xl"><div className="mb-5 inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold text-emerald-100"><span className="h-2 w-2 rounded-full bg-[#8fe0b7]" /> Live trip command center</div><h1 className="font-display text-4xl leading-none sm:text-5xl">{trip.name}</h1><p className="mt-4 max-w-md text-sm leading-6 text-white/70">One conversation turned into a route built around every person, with the room to change when travel does.</p><div className="mt-7 flex flex-wrap gap-3"><button onClick={() => setPage('map')} className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2.5 text-xs font-bold text-ink transition hover:bg-emerald-50"><MapPinned size={15} /> Explore the route</button><button onClick={() => setPage('operations')} className="inline-flex items-center gap-2 rounded-full border border-white/20 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-white/10"><Zap size={15} /> Test a disruption</button></div></div>
       <div className="absolute -right-9 -top-10 h-52 w-52 rounded-full border-[22px] border-emerald-300/15" /><div className="absolute bottom-[-72px] right-24 h-48 w-48 rounded-full bg-coral/90 blur-[2px]" /><div className="absolute bottom-14 right-12 h-8 w-8 rounded-full bg-amber-200 animate-drift" />
     </section>
     <section className="grid gap-4 xl:grid-cols-[1.45fr_0.9fr]">
