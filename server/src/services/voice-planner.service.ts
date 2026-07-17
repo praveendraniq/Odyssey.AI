@@ -1,14 +1,32 @@
 import { config } from '../config.js';
 import type { Interest, PreferenceCollection, Traveler, TripRequest } from '../types.js';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+
+const run = promisify(execFile);
 
 const defaultRequest: TripRequest = {
-  destination: 'Japan', duration: 5, travelers: 4, budget: 6000,
+  origin: 'San Francisco', destination: 'Japan', departureDate: '2026-10-12', returnDate: '2026-10-16', duration: 5, travelers: 4, budget: 6000,
   travelStyle: 'culture-forward, unhurried', foodPreferences: ['sushi', 'vegetarian friendly'],
   interests: ['culture', 'history', 'food', 'photography'],
 };
 
 const numberWords: Record<string, number> = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 };
 const toNumber = (value: string) => /^\d+$/.test(value) ? Number(value) : numberWords[value.toLowerCase()] ?? 0;
+const addDays = (date: string, days: number) => {
+  const value = new Date(`${date}T12:00:00Z`);
+  value.setUTCDate(value.getUTCDate() + days);
+  return value.toISOString().slice(0, 10);
+};
+
+const readDate = (value: string): string | undefined => {
+  const iso = value.match(/\b(20\d{2}-\d{2}-\d{2})\b/)?.[1];
+  if (iso) return iso;
+  const written = value.match(/\b(january|february|march|april|may|june|july|august|september|october|november|december)\s+(\d{1,2})(?:st|nd|rd|th)?(?:,?\s*(20\d{2}))?/i);
+  if (!written) return undefined;
+  const parsed = new Date(`${written[1]} ${written[2]}, ${written[3] ?? '2026'} 12:00:00 UTC`);
+  return Number.isFinite(parsed.getTime()) ? parsed.toISOString().slice(0, 10) : undefined;
+};
 
 /**
  * Keeps the UI productive without an external model while matching the shape
@@ -16,25 +34,30 @@ const toNumber = (value: string) => /^\d+$/.test(value) ? Number(value) : number
  */
 export class VocalBridgeService {
   async extractTrip(conversation: string): Promise<{ request: TripRequest; source: 'mock' | 'vocal-bridge'; confidence: number }> {
-    if (!config.mockMode && config.vocalBridge.baseUrl && config.vocalBridge.apiKey) {
-      const response = await fetch(`${config.vocalBridge.baseUrl.replace(/\/$/, '')}/v1/conversations/extract`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.vocalBridge.apiKey}` },
-        body: JSON.stringify({ conversation, schema: 'journeyos.trip_request.v1' }),
-      });
-      if (!response.ok) throw new Error(`Vocal Bridge returned ${response.status}`);
-      const body = await response.json() as { trip?: TripRequest; confidence?: number };
-      if (body.trip) return { request: body.trip, source: 'vocal-bridge', confidence: body.confidence ?? 0.9 };
-    }
-
+    // Vocal Bridge supplies the live voice session and transcript through WebRTC.
+    // Its public API does not expose a conversation-extraction endpoint, so JourneyOS
+    // structures that transcript locally instead of making a failing remote request.
     const value = conversation.toLowerCase();
     const request = structuredClone(defaultRequest);
     const destinationMatch = value.match(/(?:to|in|visit|visiting|as|destination is)\s+([a-z][a-z '-]+?)(?:\s+(?:for|under|with|from|during|and|this|next)\b|[.,]|$)/i)?.[1]?.trim();
     const knownDestination = ['china', 'japan', 'kyoto', 'tokyo', 'bali', 'thailand', 'bangkok', 'paris', 'france', 'italy', 'rome', 'spain', 'london', 'greece', 'mexico', 'india', 'singapore', 'australia', 'new zealand'].find((place) => new RegExp(`\\b${place}\\b`, 'i').test(value));
     const destination = destinationMatch ?? knownDestination;
     if (destination) request.destination = destination.replace(/\b\w/g, (letter) => letter.toUpperCase());
+    const originMatch = value.match(/(?:from|leaving|departing from)\s+([a-z][a-z '-]+?)(?=\s+(?:to|on|for|departing|leaving)\b|[,.]|$)/i)?.[1]?.trim();
+    if (originMatch) request.origin = originMatch.replace(/\b\w/g, (letter) => letter.toUpperCase());
+    const departing = value.match(/(?:depart(?:ing|ure)?|leave|leaving|start(?:ing)?)\s*(?:on)?\s*([^,.]+?)(?=\s+(?:and\s+)?(?:return|coming back|back on|until)\b|[,.]|$)/i)?.[1];
+    const returning = value.match(/(?:return|coming back|back)\s*(?:on)?\s*([^,.]+?)(?=[,.]|$)/i)?.[1];
+    const departureDate = departing ? readDate(departing) : readDate(value);
+    const returnDate = returning ? readDate(returning) : undefined;
+    if (departureDate) request.departureDate = departureDate;
+    if (returnDate) request.returnDate = returnDate;
     const duration = value.match(/(\d+|one|two|three|four|five|six|seven|eight|nine|ten)[ -]?day/);
     if (duration) request.duration = toNumber(duration[1]);
+    if (request.departureDate && !request.returnDate) request.returnDate = addDays(request.departureDate, Math.max(1, request.duration - 1));
+    if (request.departureDate && request.returnDate) {
+      const days = Math.round((new Date(`${request.returnDate}T12:00:00Z`).getTime() - new Date(`${request.departureDate}T12:00:00Z`).getTime()) / 86_400_000) + 1;
+      if (days > 0) request.duration = days;
+    }
     const people = value.match(/(?:for|with)\s+(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+(?:people|travelers|friends|adults)/);
     if (people) request.travelers = toNumber(people[1]);
     const budget = value.match(/(?:under|budget(?:\s+of)?|\$)\s*\$?([\d,]+)(?:k|000)?/);
@@ -63,21 +86,29 @@ export class VocalBridgeService {
 
   async collectPreferences(input: { adminName: string; adminPhone: string; phones: Record<string, string>; travelers: Traveler[]; destination: string }): Promise<PreferenceCollection> {
     const participants = input.travelers.filter((traveler) => traveler.name !== input.adminName);
-    if (!config.mockMode && config.vocalBridge.baseUrl && config.vocalBridge.apiKey && config.vocalBridge.agentId) {
-      const response = await fetch(`${config.vocalBridge.baseUrl.replace(/\/$/, '')}/v1/calls/group-preferences`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.vocalBridge.apiKey}` },
-        body: JSON.stringify({
-          agentId: config.vocalBridge.agentId,
-          admin: { name: input.adminName, phone: input.adminPhone, priorityWeight: 1.5 },
-          destination: input.destination,
-          travelers: participants.map((traveler) => ({ id: traveler.id, name: traveler.name, phone: input.phones[traveler.id] })),
-          prompt: 'Discuss the planned trip, ask for priorities and constraints, and suggest a fair compromise that preserves the admin’s priorities first.',
-        }),
-      });
-      if (!response.ok) throw new Error(`Vocal Bridge returned ${response.status}`);
-      const body = await response.json() as Partial<PreferenceCollection>;
-      if (body.calls?.length) return { ...body, adminName: input.adminName, adminWeight: body.adminWeight ?? 1.5, source: 'vocal-bridge', negotiation: body.negotiation ?? 'Preferences collected for review.', approvalSummary: body.approvalSummary ?? 'Review the proposed group plan.' } as PreferenceCollection;
+    if (!config.mockMode && config.vocalBridge.apiKey && config.vocalBridge.agentId) {
+      const calls = await Promise.all(participants.map(async (traveler) => {
+        const phone = input.phones[traveler.id]?.trim();
+        if (!phone) throw new Error(`${traveler.name} needs a phone number before a call can be placed.`);
+        try {
+          // `vb call` is Vocal Bridge's supported outbound-call interface. The
+          // selected agent and outbound calling must be configured in its CLI/dashboard.
+          await run('vb', ['call', phone, '--name', traveler.name, '--json'], { timeout: 30_000 });
+          return { travelerId: traveler.id, name: traveler.name, phone, status: 'queued' as const, summary: 'Outbound preference call queued. JourneyOS will use the completed call transcript for the group proposal.', happiness: 0, topPriorities: [], compromise: 'Waiting for the traveler’s call.' };
+        } catch (error) {
+          const detail = error instanceof Error ? error.message : 'Unknown outbound call error';
+          if (/ENOENT/.test(detail)) throw new Error('Vocal Bridge CLI is not installed on this computer. Install it with: pip install vocal-bridge, then run vb auth login and vb agent use.');
+          throw new Error(`Could not start ${traveler.name}'s Vocal Bridge call: ${detail}`);
+        }
+      }));
+      return {
+        adminName: input.adminName,
+        adminWeight: 1.5,
+        source: 'vocal-bridge',
+        calls,
+        negotiation: `Outbound preference calls are in progress for ${participants.map((traveler) => traveler.name).join(', ')}. JourneyOS will create the negotiated proposal after the call summaries are available.`,
+        approvalSummary: `Waiting for ${calls.length} traveler preference call${calls.length === 1 ? '' : 's'} to complete.`,
+      };
     }
 
     const calls = participants.map((traveler, index) => {
