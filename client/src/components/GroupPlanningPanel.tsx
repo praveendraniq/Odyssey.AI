@@ -58,7 +58,8 @@ export function GroupPlanningPanel({ trip, onTrip }: { trip: Trip; onTrip: (trip
     try {
       const phones = Object.fromEntries(trip.travelers.map((traveler) => [traveler.id, traveler.phone ?? '']));
       const response = await api.collectPreferences(admin.name, admin.phone ?? '', phones, trip);
-      onTrip(response.trip, `${response.collection.calls.length} preference conversations completed. JourneyOS negotiated a group proposal for admin review.`);
+      const liveCalls = response.collection.source === 'vocal-bridge';
+      onTrip(response.trip, liveCalls ? `${response.collection.calls.length} outbound Vocal Bridge preference call${response.collection.calls.length === 1 ? '' : 's'} queued. The proposal will update after their call summaries are available.` : `${response.collection.calls.length} preference conversations completed. JourneyOS negotiated a group proposal for admin review.`);
     } catch (error) { onTrip(trip, error instanceof Error ? error.message : 'Could not collect group preferences.'); }
     finally { setBusy(false); }
   };
