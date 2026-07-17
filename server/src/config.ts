@@ -25,6 +25,7 @@ export const config = {
     apiKey: process.env.VOCAL_BRIDGE_API_KEY,
     baseUrl: process.env.VOCAL_BRIDGE_API_URL ?? process.env.VOCAL_BRIDGE_BASE_URL,
     agentId: process.env.VOCAL_BRIDGE_AGENT_ID,
+    outboundContextSecret: process.env.VOCAL_BRIDGE_CONTEXT_SECRET,
   },
   landingAi: {
     apiKey: process.env.LANDING_AI_API_KEY,
