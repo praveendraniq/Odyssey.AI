@@ -16,7 +16,7 @@ export function BookingExperience({ trip, onTrip }: { trip: Trip; onTrip: (trip:
   const [details, setDetails] = useState({ origin: trip.request.origin ?? 'San Francisco', destination: trip.request.destination, departureDate: trip.request.departureDate ?? '2026-10-12', returnDate: trip.request.returnDate ?? '2026-10-16' });
   const equalShares = () => Object.fromEntries(trip.travelers.map((person) => [person.id, Number((100 / trip.travelers.length).toFixed(2))]));
   const [shares, setShares] = useState<Record<string, number>>(equalShares);
-  useEffect(() => { setShares(equalShares()); setConfirmed(false); setOrder(null); }, [trip.travelers.length]);
+  useEffect(() => { setShares(equalShares()); setConfirmed(false); setOrder(null); }, [trip.travelers.length, trip.request.origin, trip.request.destination, trip.request.departureDate, trip.request.returnDate]);
   useEffect(() => { setDetails({ origin: trip.request.origin ?? 'San Francisco', destination: trip.request.destination, departureDate: trip.request.departureDate ?? '2026-10-12', returnDate: trip.request.returnDate ?? '2026-10-16' }); }, [trip.request.origin, trip.request.destination, trip.request.departureDate, trip.request.returnDate]);
   const flight = trip.flights.find((item) => item.selected) ?? trip.flights[0];
   const hotel = trip.hotels.find((item) => item.selected) ?? trip.hotels[0];

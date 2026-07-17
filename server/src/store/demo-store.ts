@@ -86,6 +86,23 @@ const itineraryFor = (destination: string, duration: number): ItineraryItem[] =>
     route('bali-tirta', 3, '09:00', 'Tirta Empul water temple', 'Tirta Empul Temple, Bali, Indonesia', 'culture', 40, 50, 85, 30, 'upcoming'),
     route('bali-seminyak', 3, '16:00', 'Seminyak sunset dinner', 'Seminyak Beach, Bali, Indonesia', 'food', 68, 65, 80, 35, 'upcoming'),
   ].filter((item) => item.day <= duration);
+  if (place.includes('paris')) return [
+    route('paris-arrival', 1, '14:00', 'Settle in near Saint-Germain', 'Saint-Germain-des-Prés, Paris, France', 'stay', 30, 35, 72, 50, 'current'),
+    route('paris-montmartre', 1, '16:30', 'Montmartre village walk', 'Sacré-Cœur Basilica, Paris, France', 'culture', 100, 25, 55, 32, 'upcoming', true),
+    route('paris-d1-dinner', 1, '19:30', 'Bistro dinner in Montmartre', 'Rue des Abbesses, Paris, France', 'food', 90, 12, 68, 48, 'upcoming'),
+    route('paris-louvre', 2, '09:00', 'Louvre Museum highlights', 'Louvre Museum, Paris, France', 'museum', 180, 30, 30, 45, 'upcoming'),
+    route('paris-tuileries', 2, '13:00', 'Tuileries Garden stroll', 'Jardin des Tuileries, Paris, France', 'nature', 65, 10, 52, 53, 'upcoming', true),
+    route('paris-orsay', 2, '15:30', 'Musée d’Orsay', 'Musée d’Orsay, Paris, France', 'museum', 120, 14, 67, 63, 'upcoming'),
+    route('paris-notredame', 3, '09:30', 'Notre-Dame & Île de la Cité', 'Notre-Dame Cathedral, Paris, France', 'culture', 75, 25, 45, 48, 'upcoming', true),
+    route('paris-sainte-chapelle', 3, '11:30', 'Sainte-Chapelle', 'Sainte-Chapelle, Paris, France', 'culture', 60, 8, 56, 56, 'upcoming'),
+    route('paris-marais', 3, '15:00', 'Le Marais food and design walk', 'Place des Vosges, Paris, France', 'food', 120, 18, 72, 47, 'upcoming'),
+    route('paris-eiffel', 4, '09:30', 'Eiffel Tower visit', 'Eiffel Tower, Paris, France', 'experience', 120, 30, 34, 54, 'upcoming'),
+    route('paris-champdemars', 4, '12:30', 'Picnic at Champ de Mars', 'Champ de Mars, Paris, France', 'nature', 65, 8, 50, 63, 'upcoming', true),
+    route('paris-arc', 4, '16:00', 'Arc de Triomphe at golden hour', 'Arc de Triomphe, Paris, France', 'culture', 80, 24, 72, 47, 'upcoming'),
+    route('paris-versailles', 5, '09:00', 'Château de Versailles', 'Palace of Versailles, Versailles, France', 'culture', 210, 65, 34, 55, 'upcoming'),
+    route('paris-gardens', 5, '13:30', 'Versailles gardens walk', 'Gardens of Versailles, Versailles, France', 'nature', 110, 10, 52, 63, 'upcoming', true),
+    route('paris-farewell', 5, '19:30', 'Seine farewell dinner', 'Saint-Germain-des-Prés, Paris, France', 'food', 105, 60, 70, 48, 'upcoming'),
+  ].filter((item) => item.day <= duration);
   return [
     route('arrival', 1, '14:00', `Arrive in ${destination}`, `${destination}`, 'transport', 20, 45, 75, 50, 'current'),
     route('welcome', 1, '18:00', 'Neighborhood welcome dinner', `${destination}`, 'food', 55, 58, 75, 90, 'upcoming'),
@@ -101,7 +118,7 @@ const itineraryFor = (destination: string, duration: number): ItineraryItem[] =>
 const itineraryFromPlaces = (duration: number, places: PlaceAttraction[]): ItineraryItem[] => {
   const slots = ['09:00', '12:30', '16:00'];
   return places.slice(0, duration * slots.length).map((place, index) => {
-    const category: ItineraryItem['category'] = index % 3 === 1 ? 'food' : index % 3 === 2 ? 'experience' : 'culture';
+    const category = place.category;
     return route(
       `place-${place.id}`,
       Math.floor(index / slots.length) + 1,
@@ -359,6 +376,13 @@ export class DemoStore {
 
   updateFromRequest(request: Trip['request'], places: PlaceAttraction[] = [], briefTranscript?: string): Trip {
     this.trip.request = { ...this.trip.request, ...request };
+    const departureDate = this.trip.request.departureDate ?? '2026-10-12';
+    const returnDate = this.trip.request.returnDate ?? new Date(new Date(`${departureDate}T12:00:00Z`).getTime() + (Math.max(1, request.duration - 1) * 86_400_000)).toISOString().slice(0, 10);
+    this.trip.request.departureDate = departureDate;
+    this.trip.request.returnDate = returnDate;
+    const departure = new Date(`${departureDate}T12:00:00Z`);
+    const returning = new Date(`${returnDate}T12:00:00Z`);
+    this.trip.dates = `${departure.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}–${returning.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}`;
     this.trip.travelers = this.trip.travelers.slice(0, Math.max(1, request.travelers));
     while (this.trip.travelers.length < request.travelers) {
       const number = this.trip.travelers.length + 1;
@@ -366,7 +390,12 @@ export class DemoStore {
     }
     this.trip.name = `${request.destination}, together`;
     this.trip.itinerary = places.length >= 2 ? itineraryFromPlaces(request.duration, places) : itineraryFor(request.destination, request.duration);
-    this.setBookingOptions(request.destination);
+    this.setBookingOptions(request.destination, request.origin);
+    const selectedFlight = this.trip.flights.find((flight) => flight.selected) ?? this.trip.flights[0];
+    const hotelNights = Math.max(1, request.duration - 1 - (selectedFlight?.arrivalTime.includes('+1') ? 1 : 0));
+    this.trip.hotels = this.trip.hotels.map((hotel) => ({ ...hotel, totalPrice: hotel.price * hotelNights }));
+    const selectedHotel = this.trip.hotels.find((hotel) => hotel.selected) ?? this.trip.hotels[0];
+    if (selectedFlight && selectedHotel) this.recalculateBudget(selectedFlight.price * request.travelers, selectedHotel.totalPrice);
     this.trip.events = [{ id: `brief-${Date.now()}`, type: 'tired', title: `${request.destination} trip brief created`, createdAt: new Date().toISOString(), explanation: `${places.length >= 2 ? 'Google Places sourced real attractions for' : 'A curated route is ready for'} your ${request.duration}-day ${request.destination} itinerary. Every page now reflects this proposed trip.` }];
     this.trip.groupPreference = { ...this.trip.groupPreference, explanation: `The ${request.destination} route prioritizes ${request.interests.slice(0, 3).join(', ')} while keeping the group’s preferred pace.` };
     this.trip.preferenceCollection = undefined;
@@ -534,16 +563,26 @@ export class DemoStore {
     if (item) Object.assign(item, { day, time, status });
   }
 
-  private setBookingOptions(destination: string) {
+  private setBookingOptions(destination: string, origin = this.trip.request.origin) {
     const place = destination.toLowerCase();
     const isYellowstone = place.includes('yellowstone') || place.includes('yellow stone');
     const isTahoe = place.includes('lake tahoe') || place.includes('tahoe');
-    const arrival = isYellowstone ? 'BZN' : isTahoe ? 'RNO' : destination.slice(0, 3).toUpperCase();
+    const airportCode = (value: string | undefined, fallback: string) => {
+      const key = (value ?? '').trim().toLowerCase();
+      const known: Record<string, string> = {
+        'san francisco': 'SFO', 'new york': 'JFK', nyc: 'JFK', 'los angeles': 'LAX', chicago: 'ORD',
+        seattle: 'SEA', boston: 'BOS', miami: 'MIA', london: 'LHR', paris: 'CDG', tokyo: 'NRT',
+        japan: 'NRT', rome: 'FCO', bangkok: 'BKK', bali: 'DPS', singapore: 'SIN', delhi: 'DEL',
+      };
+      return known[key] ?? (/^[a-z]{3}$/i.test(key) ? key.toUpperCase() : fallback);
+    };
+    const arrival = isYellowstone ? 'BZN' : isTahoe ? 'RNO' : airportCode(destination, 'DST');
     const hotelName = isYellowstone ? 'Canyon Lodge & Cabins' : isTahoe ? 'Basecamp Tahoe South' : `${destination} Explorer Lodge`;
     const location = isYellowstone ? 'Canyon Village · Yellowstone' : isTahoe ? 'South Lake Tahoe · California' : `Central ${destination}`;
+    const departure = airportCode(origin, 'SFO');
     this.trip.flights = [
-      { id: 'f-primary', airline: isYellowstone ? 'United' : isTahoe ? 'Alaska' : 'Journey Air', code: isYellowstone ? 'UA 2146' : isTahoe ? 'AS 3381' : 'JO 101', departure: 'SFO', arrival, departureTime: '08:10', arrivalTime: '11:42', price: 390, duration: '3h 32m', stops: 0, selected: true },
-      { id: 'f-value', airline: isYellowstone ? 'Delta' : isTahoe ? 'Southwest' : 'Journey Air', code: isYellowstone ? 'DL 1862' : isTahoe ? 'WN 2674' : 'JO 205', departure: 'SFO', arrival, departureTime: '10:20', arrivalTime: '14:35', price: 335, duration: '4h 15m', stops: 1 },
+      { id: 'f-primary', airline: isYellowstone ? 'United' : isTahoe ? 'Alaska' : 'Journey Air', code: isYellowstone ? 'UA 2146' : isTahoe ? 'AS 3381' : 'JO 101', departure, arrival, departureTime: '08:10', arrivalTime: '11:42', price: 390, duration: '3h 32m', stops: 0, selected: true },
+      { id: 'f-value', airline: isYellowstone ? 'Delta' : isTahoe ? 'Southwest' : 'Journey Air', code: isYellowstone ? 'DL 1862' : isTahoe ? 'WN 2674' : 'JO 205', departure, arrival, departureTime: '10:20', arrivalTime: '14:35', price: 335, duration: '4h 15m', stops: 1 },
     ];
     this.trip.hotels = [
       { id: 'h-primary', name: hotelName, location, rating: 4.6, price: 290, totalPrice: 580, image: 'Primary stay', amenities: ['Central location', 'Breakfast'], selected: true },

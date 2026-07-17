@@ -5,6 +5,7 @@ import { config } from './config.js';
 import { DemoStore } from './store/demo-store.js';
 import { LandingAiService } from './services/landing-ai.service.js';
 import { GooglePlacesService } from './services/google-places.service.js';
+import { GoogleRoutesService } from './services/google-routes.service.js';
 import type { PlaceAttraction } from './services/google-places.service.js';
 import { knownBookingTotal, PayPalService } from './services/payment.service.js';
 import { RouteOptimizer } from './services/route-optimizer.service.js';
@@ -25,6 +26,15 @@ const tripDetailsSchema = z.object({ origin: z.string().min(2).max(80), destinat
 const receiptSchema = z.object({ amount: z.number().positive().optional(), restaurant: z.string().min(1).optional(), fileName: z.string().optional(), category: z.enum(['food', 'transport', 'activity', 'other']).optional(), paidBy: z.string().optional(), participantIds: z.array(z.string()).optional(), trip: z.unknown().optional() });
 const orderSchema = z.object({ percentages: z.record(z.string(), z.number().min(0).max(100)).optional() }).superRefine((value, ctx) => { if (value.percentages && Math.abs(Object.values(value.percentages).reduce((sum, item) => sum + item, 0) - 100) > 0.01) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Custom split must total 100%' }); });
 const weatherSchema = z.object({ destination: z.string().min(2).max(80) });
+const voiceTokenSchema = z.object({ participant_name: z.string().min(1).max(80).optional() });
+
+const polishedTripBrief = (request: { origin?: string; destination: string; departureDate?: string; returnDate?: string; duration: number; travelers: number; budget: number; interests: string[]; foodPreferences: string[]; travelStyle: string }) => {
+  const dates = request.departureDate && request.returnDate ? ` between ${request.departureDate} and ${request.returnDate}` : '';
+  const origin = request.origin ? `, departing from ${request.origin}` : '';
+  const interests = request.interests.length ? ` Their priorities are ${request.interests.join(', ')}.` : '';
+  const food = request.foodPreferences.length ? ` Food preferences: ${request.foodPreferences.join(', ')}.` : '';
+  return `Plan a ${request.duration}-day ${request.travelStyle} trip for ${request.travelers} traveler${request.travelers === 1 ? '' : 's'} to ${request.destination}${origin}${dates}, with a total budget of $${request.budget.toLocaleString()}.${interests}${food}`;
+};
 
 export const createApp = () => {
   const store = new DemoStore();
@@ -34,6 +44,7 @@ export const createApp = () => {
   const routeOptimizer = new RouteOptimizer();
   const receipts = new LandingAiService();
   const places = new GooglePlacesService();
+  const routes = new GoogleRoutesService();
   const weather = new WeatherService();
   const orders = new Map<string, PaymentOrder>();
   const app = express();
@@ -42,6 +53,49 @@ export const createApp = () => {
   app.use(express.json({ limit: '1mb' }));
 
   app.get('/api/health', (_req, res) => res.json({ ok: true, mockMode: config.mockMode }));
+  app.post('/api/voice-token', async (req, res, next) => {
+    try {
+      const { participant_name } = voiceTokenSchema.parse(req.body ?? {});
+      if (!config.vocalBridge.apiKey) return res.status(503).json({ error: 'Vocal Bridge is not configured on the server.' });
+      const baseUrl = (config.vocalBridge.baseUrl || 'https://vocalbridgeai.com').replace(/\/$/, '');
+      const response = await fetch(`${baseUrl}/api/v1/token`, {
+        method: 'POST',
+        headers: {
+          'X-API-Key': config.vocalBridge.apiKey,
+          ...(config.vocalBridge.agentId ? { 'X-Agent-Id': config.vocalBridge.agentId } : {}),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ participant_name: participant_name ?? 'JourneyOS traveler' }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const detail = typeof body === 'object' && body && 'error' in body ? String(body.error) : `Vocal Bridge returned ${response.status}`;
+        return res.status(response.status).json({ error: detail });
+      }
+      return res.json(body);
+    } catch (error) { next(error); }
+  });
+  app.get('/api/voice/outbound-context', (req, res) => {
+    const suppliedSecret = req.header('X-JourneyOS-Context-Key');
+    if (!config.vocalBridge.outboundContextSecret || suppliedSecret !== config.vocalBridge.outboundContextSecret) return res.status(401).json({ error: 'Unauthorized trip context request.' });
+    const trip = store.getTrip();
+    res.json({
+      admin: trip.travelers[0]?.name ?? 'Trip admin',
+      trip: {
+        origin: trip.request.origin,
+        destination: trip.request.destination,
+        departureDate: trip.request.departureDate,
+        returnDate: trip.request.returnDate,
+        duration: trip.request.duration,
+        travelers: trip.travelers.map(({ name, pacePreference, foodPreference }) => ({ name, pacePreference, foodPreference })),
+        budget: trip.request.budget,
+        travelStyle: trip.request.travelStyle,
+        interests: trip.request.interests,
+        foodPreferences: trip.request.foodPreferences,
+      },
+      instruction: 'Use this as established context. Do not ask the callee to repeat these facts. Ask only for their personal priorities, constraints, pace, food needs, and a compromise they would accept.',
+    });
+  });
   app.get('/api/trips/demo', (_req, res) => res.json({ trip: store.getTrip(), mode: config.mockMode ? 'demo' : 'live' }));
   app.get('/api/weather', async (req, res, next) => {
     try { const { destination } = weatherSchema.parse(req.query); res.json({ weather: await weather.current(destination) }); }
@@ -73,14 +127,23 @@ export const createApp = () => {
       const result = await planner.extractTrip(conversation);
       let attractions: PlaceAttraction[] = [];
       let placesDiagnostic: string | undefined;
-      try { attractions = await places.searchAttractions(result.request.destination, result.request.duration * 3); }
+      try { attractions = await places.searchAttractions(result.request.destination, result.request.duration * 3, { interests: result.request.interests, foodPreferences: result.request.foodPreferences }); }
       catch (error) {
         placesDiagnostic = error instanceof Error ? error.message : 'Google Places request failed';
         console.warn('Google Places unavailable; using curated itinerary.', placesDiagnostic);
       }
-      const trip = store.updateFromRequest(result.request, attractions, conversation);
+      if (attractions.length >= 3) {
+        try { attractions = await routes.optimizeStops(result.request.destination, attractions); }
+        catch (error) {
+          const detail = error instanceof Error ? error.message : 'Google Routes request failed';
+          placesDiagnostic = placesDiagnostic ? `${placesDiagnostic}; ${detail}` : detail;
+          console.warn('Google Routes unavailable; preserving Places result order.', detail);
+        }
+      }
+      const summary = polishedTripBrief(result.request);
+      const trip = store.updateFromRequest(result.request, attractions, summary);
       const itinerarySource = attractions.length >= 2 ? 'google-places' : 'curated-fallback';
-      res.json({ ...result, trip, itinerarySource, placesDiagnostic: placesDiagnostic ?? (itinerarySource === 'curated-fallback' ? 'Google Places returned fewer than two attractions.' : undefined), summary: `${result.request.duration} days in ${result.request.destination} for ${result.request.travelers} travelers, with a $${result.request.budget.toLocaleString()} budget.` });
+      res.json({ ...result, trip, itinerarySource, placesDiagnostic: placesDiagnostic ?? (itinerarySource === 'curated-fallback' ? 'Google Places returned fewer than two attractions.' : undefined), summary });
     } catch (error) { next(error); }
   });
   app.post('/api/planner/collect-preferences', async (req, res, next) => {
