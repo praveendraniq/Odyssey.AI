@@ -19,6 +19,15 @@ const addDays = (date: string, days: number) => {
   return value.toISOString().slice(0, 10);
 };
 
+const dayCount = (departureDate: string, returnDate: string, fallback: number) => {
+  const departure = new Date(`${departureDate}T12:00:00Z`);
+  const returning = new Date(`${returnDate}T12:00:00Z`);
+  const fromDates = Math.round((returning.getTime() - departure.getTime()) / 86_400_000) + 1;
+  const value = Number.isFinite(fromDates) && fromDates > 0 ? fromDates : fallback;
+  // A voice typo must never create an unusable, dozens-of-days demo timeline.
+  return Math.min(14, Math.max(1, Math.round(value) || 1));
+};
+
 const readDate = (value: string): string | undefined => {
   const iso = value.match(/\b(20\d{2}-\d{2}-\d{2})\b/)?.[1];
   if (iso) return iso;
@@ -33,30 +42,48 @@ const readDate = (value: string): string | undefined => {
  * of an eventual Vocal Bridge structured conversation response.
  */
 export class VocalBridgeService {
+  async callMayaAgent(): Promise<void> {
+    if (!config.vocalBridge.mayaPhone) throw new Error('Maya’s Vocal Bridge phone number is not configured.');
+    try {
+      // The currently selected `vb` CLI agent is the JourneyOS main agent. It
+      // places the outbound call to Maya’s separate Vocal Bridge phone agent.
+      await run('vb', ['call', config.vocalBridge.mayaPhone, '--name', 'Maya · simulated traveler', '--json'], { timeout: 30_000 });
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : 'Unknown outbound call error';
+      if (/ENOENT/.test(detail)) throw new Error('Vocal Bridge CLI is not installed. Run: pipx install vocal-bridge, then authenticate and select the main JourneyOS agent.');
+      throw new Error(`Could not place Maya’s preference call: ${detail}`);
+    }
+  }
+
   async extractTrip(conversation: string): Promise<{ request: TripRequest; source: 'mock' | 'vocal-bridge'; confidence: number }> {
     // Vocal Bridge supplies the live voice session and transcript through WebRTC.
     // Its public API does not expose a conversation-extraction endpoint, so JourneyOS
     // structures that transcript locally instead of making a failing remote request.
     const value = conversation.toLowerCase();
     const request = structuredClone(defaultRequest);
-    const destinationMatch = value.match(/(?:to|in|visit|visiting|as|destination is)\s+([a-z][a-z '-]+?)(?:\s+(?:for|under|with|from|during|and|this|next)\b|[.,]|$)/i)?.[1]?.trim();
+    const destinationMatch = value.match(/(?:trip|travel(?:ing)?|going|fly(?:ing)?|heading)\s+to\s+([a-z][a-z '-]+?)(?:\s+(?:for|under|with|from|during|and|this|next|on|leaving|departing)\b|[.,]|$)|(?:visit(?:ing)?|destination is)\s+([a-z][a-z '-]+?)(?:\s+(?:for|under|with|from|during|and|this|next|on)\b|[.,]|$)/i)?.slice(1).find(Boolean)?.trim();
     const knownDestination = ['china', 'japan', 'kyoto', 'tokyo', 'bali', 'thailand', 'bangkok', 'paris', 'france', 'italy', 'rome', 'spain', 'london', 'greece', 'mexico', 'india', 'singapore', 'australia', 'new zealand'].find((place) => new RegExp(`\\b${place}\\b`, 'i').test(value));
-    const destination = destinationMatch ?? knownDestination;
+    // Prefer a recognized destination over a broad phrase such as "things to do in Tokyo".
+    const destinationLooksLikePreference = !destinationMatch || destinationMatch.length > 40 || /\b(see|place|young|people|traveler|vegetarian|budget|prefer|want|like|pace|food|activity|possible)\b/i.test(destinationMatch);
+    const destination = knownDestination ?? (destinationLooksLikePreference ? undefined : destinationMatch);
     if (destination) request.destination = destination.replace(/\b\w/g, (letter) => letter.toUpperCase());
     const originMatch = value.match(/(?:from|leaving|departing from)\s+([a-z][a-z '-]+?)(?=\s+(?:to|on|for|departing|leaving)\b|[,.]|$)/i)?.[1]?.trim();
     if (originMatch) request.origin = originMatch.replace(/\b\w/g, (letter) => letter.toUpperCase());
     const departing = value.match(/(?:depart(?:ing|ure)?|leave|leaving|start(?:ing)?)\s*(?:on)?\s*([^,.]+?)(?=\s+(?:and\s+)?(?:return|coming back|back on|until)\b|[,.]|$)/i)?.[1];
     const returning = value.match(/(?:return|coming back|back)\s*(?:on)?\s*([^,.]+?)(?=[,.]|$)/i)?.[1];
-    const departureDate = departing ? readDate(departing) : readDate(value);
-    const returnDate = returning ? readDate(returning) : undefined;
+    const dateMatches = [...value.matchAll(/\b(?:20\d{2}-\d{2}-\d{2}|(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2}(?:st|nd|rd|th)?(?:,?\s*20\d{2})?)\b/gi)]
+      .map((match) => readDate(match[0]))
+      .filter((date): date is string => Boolean(date));
+    const departureDate = departing ? readDate(departing) : dateMatches[0] ?? readDate(value);
+    const returnDate = returning ? readDate(returning) : dateMatches[1];
     if (departureDate) request.departureDate = departureDate;
     if (returnDate) request.returnDate = returnDate;
     const duration = value.match(/(\d+|one|two|three|four|five|six|seven|eight|nine|ten)[ -]?day/);
     if (duration) request.duration = toNumber(duration[1]);
     if (request.departureDate && !request.returnDate) request.returnDate = addDays(request.departureDate, Math.max(1, request.duration - 1));
     if (request.departureDate && request.returnDate) {
-      const days = Math.round((new Date(`${request.returnDate}T12:00:00Z`).getTime() - new Date(`${request.departureDate}T12:00:00Z`).getTime()) / 86_400_000) + 1;
-      if (days > 0) request.duration = days;
+      request.duration = dayCount(request.departureDate, request.returnDate, request.duration);
+      request.returnDate = addDays(request.departureDate, request.duration - 1);
     }
     const people = value.match(/(?:for|with)\s+(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+(?:people|travelers|friends|adults)/);
     if (people) request.travelers = toNumber(people[1]);

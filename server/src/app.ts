@@ -10,6 +10,7 @@ import type { PlaceAttraction } from './services/google-places.service.js';
 import { knownBookingTotal, PayPalService } from './services/payment.service.js';
 import { RouteOptimizer } from './services/route-optimizer.service.js';
 import { SabreService } from './services/sabre.service.js';
+import { SabreMcpService } from './services/sabre-mcp.service.js';
 import { VocalBridgeService } from './services/voice-planner.service.js';
 import { WeatherService } from './services/weather.service.js';
 import type { PaymentOrder, TripEvent } from './types.js';
@@ -19,6 +20,7 @@ const requestSchema = z.object({ conversation: z.string().min(3).max(1000) });
 const hydrateTripSchema = z.object({ trip: z.unknown() });
 const preferenceCollectionSchema = z.object({ adminName: z.string().min(2).max(60), adminPhone: z.string().min(7).max(30), phones: z.record(z.string(), z.string().min(7).max(30)), trip: z.unknown().optional() });
 const preferenceDecisionSchema = z.object({ interestScores: z.record(z.string(), z.number().min(1).max(5)), trip: z.unknown().optional() });
+const simulatedInterviewSchema = z.object({ trip: z.unknown().optional() });
 const selectionSchema = z.object({ id: z.string().min(1), trip: z.unknown().optional() });
 const progressSchema = z.object({ id: z.string().min(1).optional(), action: z.enum(['start', 'complete', 'skip', 'delay']), actualDurationMins: z.number().int().min(1).max(720).optional(), minutes: z.number().int().min(1).max(240).optional(), trip: z.unknown().optional() });
 const travelerSchema = z.object({ action: z.enum(['add', 'update', 'remove']), id: z.string().min(1).optional(), name: z.string().min(2).max(60).optional(), phone: z.string().max(30).optional(), budgetPreference: z.enum(['value', 'balanced', 'premium']).optional(), activityLevel: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5)]).optional(), pacePreference: z.enum(['easy', 'balanced', 'full']).optional(), foodPreference: z.string().min(2).max(100).optional(), interests: z.object({ culture: z.number().min(1).max(5), history: z.number().min(1).max(5), food: z.number().min(1).max(5), photography: z.number().min(1).max(5), shopping: z.number().min(1).max(5), nightlife: z.number().min(1).max(5), nature: z.number().min(1).max(5) }).optional(), trip: z.unknown().optional() });
@@ -27,6 +29,8 @@ const receiptSchema = z.object({ amount: z.number().positive().optional(), resta
 const orderSchema = z.object({ percentages: z.record(z.string(), z.number().min(0).max(100)).optional() }).superRefine((value, ctx) => { if (value.percentages && Math.abs(Object.values(value.percentages).reduce((sum, item) => sum + item, 0) - 100) > 0.01) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Custom split must total 100%' }); });
 const weatherSchema = z.object({ destination: z.string().min(2).max(80) });
 const voiceTokenSchema = z.object({ participant_name: z.string().min(1).max(80).optional() });
+const sabreSearchSchema = z.object({ origin: z.string().trim().length(3).toUpperCase(), destination: z.string().trim().length(3).toUpperCase(), departureDate: z.string().date(), returnDate: z.string().date(), adults: z.number().int().min(1).max(9) });
+const sabreBookingSchema = z.object({ confirmed: z.literal(true), booking: z.record(z.unknown()) });
 
 const polishedTripBrief = (request: { origin?: string; destination: string; departureDate?: string; returnDate?: string; duration: number; travelers: number; budget: number; interests: string[]; foodPreferences: string[]; travelStyle: string }) => {
   const dates = request.departureDate && request.returnDate ? ` between ${request.departureDate} and ${request.returnDate}` : '';
@@ -39,6 +43,7 @@ const polishedTripBrief = (request: { origin?: string; destination: string; depa
 export const createApp = () => {
   const store = new DemoStore();
   const sabre = new SabreService(store.getTrip());
+  const sabreMcp = new SabreMcpService();
   const planner = new VocalBridgeService();
   const payments = new PayPalService();
   const routeOptimizer = new RouteOptimizer();
@@ -56,16 +61,19 @@ export const createApp = () => {
   app.post('/api/voice-token', async (req, res, next) => {
     try {
       const { participant_name } = voiceTokenSchema.parse(req.body ?? {});
-      if (!config.vocalBridge.apiKey) return res.status(503).json({ error: 'Vocal Bridge is not configured on the server.' });
+      const isMayaSession = req.query.agent === 'maya';
+      const agentId = isMayaSession ? config.vocalBridge.mayaAgentId : config.vocalBridge.agentId;
+      const apiKey = isMayaSession ? (config.vocalBridge.mayaApiKey ?? config.vocalBridge.apiKey) : config.vocalBridge.apiKey;
+      if (!apiKey || !agentId) return res.status(503).json({ error: `Vocal Bridge ${isMayaSession ? 'Maya agent' : 'agent'} is not configured on the server.` });
       const baseUrl = (config.vocalBridge.baseUrl || 'https://vocalbridgeai.com').replace(/\/$/, '');
       const response = await fetch(`${baseUrl}/api/v1/token`, {
         method: 'POST',
         headers: {
-          'X-API-Key': config.vocalBridge.apiKey,
-          ...(config.vocalBridge.agentId ? { 'X-Agent-Id': config.vocalBridge.agentId } : {}),
+          'X-API-Key': apiKey,
+          'X-Agent-Id': agentId,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ participant_name: participant_name ?? 'JourneyOS traveler' }),
+        body: JSON.stringify({ participant_name: participant_name ?? (isMayaSession ? 'Maya traveler agent' : 'JourneyOS traveler') }),
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) {
@@ -127,7 +135,7 @@ export const createApp = () => {
       const result = await planner.extractTrip(conversation);
       let attractions: PlaceAttraction[] = [];
       let placesDiagnostic: string | undefined;
-      try { attractions = await places.searchAttractions(result.request.destination, result.request.duration * 3, { interests: result.request.interests, foodPreferences: result.request.foodPreferences }); }
+      try { attractions = await places.searchAttractions(result.request.destination, result.request.duration * 4, { interests: result.request.interests, foodPreferences: result.request.foodPreferences }); }
       catch (error) {
         placesDiagnostic = error instanceof Error ? error.message : 'Google Places request failed';
         console.warn('Google Places unavailable; using curated itinerary.', placesDiagnostic);
@@ -160,6 +168,21 @@ export const createApp = () => {
     try { const input = preferenceDecisionSchema.parse(req.body); if (input.trip) store.hydrate(input.trip as ReturnType<typeof store.getTrip>); res.json({ trip: store.applyPreferenceDecision(input.interestScores as ReturnType<typeof store.getTrip>['groupPreference']['interestScores']) }); }
     catch (error) { next(error); }
   });
+  app.post('/api/planner/simulate-maya-interview', (req, res, next) => {
+    try {
+      const { trip } = simulatedInterviewSchema.parse(req.body);
+      if (trip) store.hydrate(trip as ReturnType<typeof store.getTrip>);
+      res.json({ trip: store.completeSimulatedMayaInterview(), summary: 'Maya’s preference conflicts with the culture-heavy Day 2. I kept the family shrine, added Akihabara, and moved the early activity later. Maya’s satisfaction rises from 42% to 81% while every traveler stays above 72%.' });
+    } catch (error) { next(error); }
+  });
+  app.post('/api/planner/call-maya', async (req, res, next) => {
+    try {
+      const { trip } = simulatedInterviewSchema.parse(req.body);
+      if (trip) store.hydrate(trip as ReturnType<typeof store.getTrip>);
+      await planner.callMayaAgent();
+      res.json({ trip: store.startMayaPreferenceCall() });
+    } catch (error) { next(error); }
+  });
 
   app.get('/api/flights/search', async (req, res, next) => {
     try { res.json({ results: await sabre.searchFlights({ origin: String(req.query.origin ?? 'SFO'), destination: String(req.query.destination ?? 'TYO'), departureDate: String(req.query.departureDate ?? '2026-10-12') }), source: config.mockMode ? 'mock' : 'sabre' }); }
@@ -168,6 +191,20 @@ export const createApp = () => {
   app.get('/api/hotels/search', async (req, res, next) => {
     try { res.json({ results: await sabre.searchHotels({ cityCode: String(req.query.cityCode ?? 'TYO'), checkInDate: String(req.query.checkInDate ?? '2026-10-12'), checkOutDate: String(req.query.checkOutDate ?? '2026-10-15') }), source: config.mockMode ? 'mock' : 'sabre' }); }
     catch (error) { next(error); }
+  });
+  app.post('/api/sabre/live-search', async (req, res, next) => {
+    try {
+      const input = sabreSearchSchema.parse(req.body);
+      const results = await sabreMcp.searchTrip(input);
+      res.json({ source: 'sabre-cert-mcp', results });
+    } catch (error) { next(error); }
+  });
+  app.post('/api/sabre/create-booking', async (req, res, next) => {
+    try {
+      const { booking } = sabreBookingSchema.parse(req.body);
+      const result = await sabreMcp.createBooking(booking);
+      res.status(201).json({ source: 'sabre-cert-mcp', result });
+    } catch (error) { next(error); }
   });
   app.post('/api/bookings/flight', (req, res, next) => {
     try { const input = selectionSchema.parse(req.body); if (input.trip) store.hydrate(input.trip as ReturnType<typeof store.getTrip>); res.json({ trip: store.selectFlight(input.id) }); }

@@ -3,6 +3,13 @@
 @tailwind components;
 @tailwind utilities;
 
+/* The Plan page has one primary entry point: the Travel Mediator voice dock.
+   The detailed group flow lives directly below it in GroupPlanningPanel. */
+.planner-workflow > section:nth-of-type(4),
+.planner-workflow > section:nth-of-type(5) {
+  display: none;
+}
+
 /* Group calls and negotiation now live in the dedicated, editable planning
    workflow directly below the voice brief. Hide the legacy embedded panels. */
 .planner-workflow > section:nth-child(n + 4) {
