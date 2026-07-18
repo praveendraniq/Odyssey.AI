@@ -1,6 +1,6 @@
-# JourneyOS
+# Odyssey.AI
 
-JourneyOS is a mock-first hackathon MVP for planning, booking, managing, and dynamically re-optimizing a group trip in one conversational flow.
+Odyssey.AI is a mock-first hackathon MVP for planning, booking, managing, and dynamically re-optimizing a group trip in one conversational flow.
 
 ## What is included
 

@@ -33,3 +33,29 @@ test('mock extraction accepts Chennai as both a brief and a bare destination', a
   assert.equal(brief.request.destination, 'Chennai');
   assert.equal(bare.request.destination, 'Chennai');
 });
+
+test('brief extraction uses a spoken origin-to-destination route instead of demo defaults', async () => {
+  const planner = new VocalBridgeService();
+  const result = await planner.extractTrip('Plan a four-day trip from San Francisco to Hawaii for two travelers, October 12th through October 15th, with a four-thousand-dollar budget.');
+  assert.equal(result.request.origin, 'San Francisco');
+  assert.equal(result.request.destination, 'Hawaii');
+  assert.equal(result.request.departureDate, '2026-10-12');
+  assert.equal(result.request.returnDate, '2026-10-15');
+});
+
+test('brief extraction supports a direct city-to-city route without the word from', async () => {
+  const planner = new VocalBridgeService();
+  const result = await planner.extractTrip('Dallas to San Diego');
+  assert.equal(result.request.origin, 'Dallas');
+  assert.equal(result.request.destination, 'San Diego');
+});
+
+test('brief extraction supports structured traveler wording with destination then departure city', async () => {
+  const planner = new VocalBridgeService();
+  const result = await planner.extractTrip('Plan a 4-day culture-forward, unhurried trip for 3 travelers to San Diego, departing from Dallas between 2026-10-12 and 2026-10-16, with a total budget of $4,000.');
+  assert.equal(result.request.origin, 'Dallas');
+  assert.equal(result.request.destination, 'San Diego');
+  assert.equal(result.request.duration, 5);
+  assert.equal(result.request.travelers, 3);
+  assert.equal(result.request.budget, 4000);
+});

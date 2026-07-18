@@ -1,5 +1,5 @@
 {
   "enabled": true,
-  "description": "JourneyOS AI Travel Negotiator and travel coordinator. On the live third call it first hears a traveler’s unscripted priority, compares it with preferences collected from earlier calls, dynamically identifies any real conflict, and negotiates an explicit spoken trade before admin approval. It also delegates planning, Sabre inventory, itinerary routing, disruption recovery, budgeting, and Travel DNA tasks.",
+  "description": "Odyssey.AI Travel Negotiator and travel coordinator. On the live third call it first hears a traveler’s unscripted priority, compares it with preferences collected from earlier calls, dynamically identifies any real conflict, and negotiates an explicit spoken trade before admin approval. It also delegates planning, Sabre inventory, itinerary routing, disruption recovery, budgeting, and Travel DNA tasks.",
   "verbatim": false
 }

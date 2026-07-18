@@ -59,7 +59,7 @@ export function VocalBridgeProvider({ children }: { children: ReactNode; options
         : (() => { const command = interpretCommand(query); emitAction(command.action, command.payload); return command.response; })();
       setTranscript((entries) => [...entries, { role: 'agent', text: response, timestamp: Date.now() }]);
     } catch (cause) {
-      setError({ code: 'DATA_CHANNEL_ERROR', message: cause instanceof Error ? cause.message : 'The JourneyOS agent did not respond.' });
+      setError({ code: 'DATA_CHANNEL_ERROR', message: cause instanceof Error ? cause.message : 'The Odyssey.AI agent did not respond.' });
     }
   }, []);
 

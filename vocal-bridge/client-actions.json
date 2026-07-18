@@ -1,32 +1,32 @@
 [
   {
-    "name": "show_booking_options",
-    "description": "Open JourneyOS Booking and Checkout so the traveler can review flights, hotels, and payment details.",
+    "name": "show_agent_network",
+    "description": "Open the Odyssey.AI Agent Network so the traveler can inspect delegation and handoff traces.",
     "direction": "agent_to_app"
   },
   {
-    "name": "navigate",
-    "description": "Navigate JourneyOS. Payload page: home, planner, checkout, live, expenses, or dna.",
+    "name": "show_booking_options",
+    "description": "Open Odyssey.AI Booking and Checkout so the traveler can review flights, hotels, and payment details.",
     "direction": "agent_to_app"
   },
   {
     "name": "select_bundle",
-    "description": "Select a booking bundle. Payload id: value, overall, or neighborhood.",
+    "description": "Select a booking bundle the traveler explicitly names. Payload id: value, overall, or neighborhood.",
     "direction": "agent_to_app"
   },
   {
     "name": "confirm_booking",
-    "description": "Open the admin payment step only after the user explicitly confirms the selected bundle.",
+    "description": "Open the admin payment step only after the traveler explicitly confirms the selected bundle.",
     "direction": "agent_to_app"
   },
   {
     "name": "collect_payment",
-    "description": "Create the admin PayPal checkout only after the user explicitly asks to pay. The UI remains responsible for approval and capture.",
+    "description": "Create the admin PayPal checkout only after the traveler explicitly asks to pay. The UI remains responsible for approval and capture.",
     "direction": "agent_to_app"
   },
   {
     "name": "search_live_sabre",
-    "description": "After the traveler explicitly confirms an origin and destination airport code, search fresh Sabre CERT inventory. Payload: origin and destination, each a three-letter IATA code. Never guess a code from a city name; ask for confirmation first.",
+    "description": "After the traveler explicitly confirms origin and destination airport codes, search fresh Sabre CERT inventory. Payload: origin and destination, each a three-letter IATA code.",
     "direction": "agent_to_app"
   },
   {
@@ -36,39 +36,54 @@
   },
   {
     "name": "add_traveler",
-    "description": "Add a friend to the saved group. Payload: name and optional phone in E.164 format. First repeat the name and phone back and receive an explicit yes before emitting. This recalculates group totals and invalidates any previously searched Sabre inventory.",
+    "description": "Add a friend after repeating the name and optional E.164 phone number and receiving explicit confirmation. Payload: name and optional phone.",
     "direction": "agent_to_app"
   },
   {
     "name": "trip_brief_ready",
-    "description": "Place a finalized spoken trip request into the JourneyOS editable trip brief. Payload field: conversation.",
+    "description": "Place the finalized spoken trip request into the editable brief. Send one payload field named conversation containing a complete polished paragraph.",
+    "direction": "agent_to_app"
+  },
+  {
+    "name": "collect_maya_preferences",
+    "description": "End the browser conversation and start the configured simulated-traveler preference call.",
+    "direction": "agent_to_app"
+  },
+  {
+    "name": "itinerary_command",
+    "description": "Apply the traveler’s exact change to the selected itinerary day. Send their verbatim request in query; supports complete, undo, start, skip, cancel, remove, restore, and delay.",
+    "direction": "agent_to_app"
+  },
+  {
+    "name": "replan_trip",
+    "description": "Re-optimize the active itinerary day for a broad disruption. Send tired, late, rain, closed, or flight-delay in type.",
+    "direction": "agent_to_app"
+  },
+  {
+    "name": "confirm_change",
+    "description": "Confirm and apply the proposed active-day flight-delay recovery after the traveler explicitly agrees.",
+    "direction": "agent_to_app"
+  },
+  {
+    "name": "navigate",
+    "description": "Open an Odyssey.AI page. Send page as home, planner, checkout, live, expenses, or dna.",
+    "direction": "agent_to_app"
+  },
+  {
+    "name": "show_day",
+    "description": "Open a specific itinerary day on Live Trip. Send the requested positive integer in day.",
     "direction": "agent_to_app"
   },
   {
     "name": "trip_plan_created",
-    "description": "Notify the voice agent that JourneyOS structured and saved the trip brief.",
+    "description": "Notify the voice agent that Odyssey.AI structured and saved the trip brief.",
     "direction": "app_to_agent",
     "behavior": "notify"
   },
   {
     "name": "journeyos_context",
-    "description": "Supplies the current JourneyOS page, destination, dates, travelers, selected booking, and active itinerary day. Treat these facts as authoritative and do not restart planning.",
+    "description": "Supplies the current page, destination, dates, travelers, selected booking, friends, and active itinerary day. Treat these facts as authoritative and do not restart planning.",
     "direction": "app_to_agent",
     "behavior": "notify"
-  },
-  {
-    "name": "replan_trip",
-    "description": "Re-optimize the active itinerary day for a broad disruption. Payload type is tired, late, rain, closed, or flight-delay.",
-    "direction": "agent_to_app"
-  },
-  {
-    "name": "itinerary_command",
-    "description": "Apply the traveler’s exact change to the currently selected itinerary day. Send the verbatim request in payload field query; the app resolves targets and supports complete, undo, start, skip, cancel, and delay.",
-    "direction": "agent_to_app"
-  },
-  {
-    "name": "show_day",
-    "description": "Open a specific itinerary day. Payload field: day.",
-    "direction": "agent_to_app"
   }
 ]

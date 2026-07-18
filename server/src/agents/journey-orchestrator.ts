@@ -180,7 +180,7 @@ export class JourneyAgentCoordinator {
 
   getSpecialist(agentId: SpecialistAgentId): SpecialistAgent {
     const agent = this.specialists.get(agentId);
-    if (!agent) throw new Error(`Unknown JourneyOS agent: ${agentId}`);
+    if (!agent) throw new Error(`Unknown Odyssey.AI agent: ${agentId}`);
     return agent;
   }
 

@@ -1,4 +1,4 @@
-# Five-minute JourneyOS demo
+# Five-minute Odyssey.AI demo
 
 1. Start with `corepack pnpm install --frozen-lockfile` and `corepack pnpm dev`, then open `http://localhost:5173`.
 2. On Trip dashboard, click **Reset demo** so every run begins from the same Japan state.
@@ -14,4 +14,4 @@
 12. In **Live trip**, open the compact **Demo disruptions** drawer and apply one event. Show the AI decision explanation in the same drawer while the plan changes behind it.
 13. Open **Expenses & settlement**, scan a receipt, choose the payer and participants, and show paid, personal share, and net owes/receives totals.
 14. Open **Travel DNA** and show the before/after score, confidence, timestamp and evidence explaining what the system learned.
-13. Return to the dashboard and close with: “Most travel apps optimize bookings. JourneyOS optimizes the traveler.”
+13. Return to the dashboard and close with: “Most travel apps optimize bookings. Odyssey.AI optimizes the traveler.”
