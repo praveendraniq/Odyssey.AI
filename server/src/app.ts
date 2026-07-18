@@ -19,6 +19,16 @@ const replanSchema = z.object({ type: z.enum(['late', 'rain', 'flight-delay', 'c
 const requestSchema = z.object({ conversation: z.string().min(3).max(1000) });
 const hydrateTripSchema = z.object({ trip: z.unknown() });
 const preferenceCollectionSchema = z.object({ adminName: z.string().min(2).max(60), adminPhone: z.string().min(7).max(30), phones: z.record(z.string(), z.string().min(7).max(30)), trip: z.unknown().optional() });
+const preferenceList = z.union([z.string().min(1).max(160), z.array(z.string().min(1).max(160)).max(8)]).transform((value) => Array.isArray(value) ? value : [value]);
+const preferenceCallCallbackSchema = z.object({
+  travelerId: z.string().min(1).max(120),
+  outcome: z.enum(['completed', 'no-answer', 'failed', 'canceled']),
+  mustDo: preferenceList.optional(),
+  avoid: preferenceList.optional(),
+  pace: z.string().min(2).max(40).optional(),
+  food: z.string().min(2).max(120).optional(),
+  summary: z.string().min(4).max(800),
+});
 const preferenceDecisionSchema = z.object({ interestScores: z.record(z.string(), z.number().min(1).max(5)), trip: z.unknown().optional() });
 const simulatedInterviewSchema = z.object({ trip: z.unknown().optional() });
 const selectionSchema = z.object({ id: z.string().min(1), trip: z.unknown().optional() });
@@ -95,7 +105,7 @@ export const createApp = () => {
         departureDate: trip.request.departureDate,
         returnDate: trip.request.returnDate,
         duration: trip.request.duration,
-        travelers: trip.travelers.map(({ name, pacePreference, foodPreference }) => ({ name, pacePreference, foodPreference })),
+        travelers: trip.travelers.map(({ id, name, pacePreference, foodPreference }) => ({ id, name, pacePreference, foodPreference })),
         budget: trip.request.budget,
         travelStyle: trip.request.travelStyle,
         interests: trip.request.interests,
@@ -103,6 +113,17 @@ export const createApp = () => {
       },
       instruction: 'Use this as established context. Do not ask the callee to repeat these facts. Ask only for their personal priorities, constraints, pace, food needs, and a compromise they would accept.',
     });
+  });
+  app.post('/api/preference-calls/complete', (req, res, next) => {
+    try {
+      const suppliedSecret = req.header('X-JourneyOS-Context-Key');
+      if (!config.vocalBridge.outboundContextSecret || suppliedSecret !== config.vocalBridge.outboundContextSecret) return res.status(401).json({ error: 'Unauthorized preference callback.' });
+      // Vocal Bridge's custom-tool editor serializes declared parameters as
+      // query values. Accept those as well as a normal JSON request body.
+      const source = req.body && Object.keys(req.body).length ? req.body : req.query;
+      const input = preferenceCallCallbackSchema.parse(source);
+      return res.json({ trip: store.completePreferenceCall(input) });
+    } catch (error) { next(error); }
   });
   app.get('/api/trips/demo', (_req, res) => res.json({ trip: store.getTrip(), mode: config.mockMode ? 'demo' : 'live' }));
   app.get('/api/weather', async (req, res, next) => {

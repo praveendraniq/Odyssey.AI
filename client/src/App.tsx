@@ -3,7 +3,7 @@ import {
   ArrowRight, BatteryLow, Bot, CalendarDays, Camera, Check, CheckCircle2, ChevronRight,
   CircleOff, CloudRain, CreditCard, Footprints, Headphones, Hotel as HotelIcon, Landmark,
   Map, MapPinned, Mic, Plane, PlaneLanding, Route, ScanLine, Sparkles, TrainFront,
-  Phone, Utensils, WalletCards, Zap,
+  Utensils, WalletCards, Zap,
 } from 'lucide-react';
 import { api } from './api';
 import type { Interest, ItineraryItem, ItemCategory, PaymentOrder, ReplanType, Trip } from './types';
@@ -18,14 +18,19 @@ import { ExpenseLedger } from './components/ExpenseLedger';
 import { DisruptionDemo } from './components/DisruptionDemo';
 
 type Page = 'home' | 'planner' | 'checkout' | 'live' | 'expenses' | 'dna';
+const isE164Phone = (value: string) => /^\+[1-9]\d{7,14}$/.test(value);
+const toE164Phone = (value?: string) => {
+  const digits = value?.replace(/\D/g, '') ?? '';
+  return digits ? `+${digits}` : '';
+};
 
 const nav: { id: Page; label: string; icon: typeof Map }[] = [
   { id: 'home', label: 'Trip dashboard', icon: Map },
-  { id: 'planner', label: 'Plan together', icon: Mic },
-  { id: 'live', label: 'Live itinerary', icon: Route },
-  { id: 'checkout', label: 'Book & split', icon: CreditCard },
-  { id: 'expenses', label: 'Shared expenses', icon: WalletCards },
-  { id: 'dna', label: 'Travel memory', icon: Sparkles },
+  { id: 'planner', label: 'Plan', icon: Mic },
+  { id: 'checkout', label: 'Booking & payment', icon: CreditCard },
+  { id: 'live', label: 'Live trip', icon: Route },
+  { id: 'expenses', label: 'Expenses & settlement', icon: WalletCards },
+  { id: 'dna', label: 'Travel DNA', icon: Sparkles },
 ];
 
 const categoryMeta: Record<ItemCategory, { icon: typeof Landmark; label: string; color: string }> = {
@@ -75,7 +80,7 @@ function RouteMap({ trip, activeDay, onSelect }: { trip: Trip; activeDay: number
     <div className="absolute -right-16 bottom-0 h-72 w-80 rotate-[20deg] rounded-[45%] bg-[#c6d9c6] opacity-70" />
     <div className="absolute left-[11%] top-[19%] h-[2px] w-[79%] rotate-[12deg] bg-white/70" />
     <div className="absolute left-[3%] top-[66%] h-[2px] w-[86%] rotate-[-21deg] bg-white/70" />
-    <span className="absolute left-5 top-5 rounded-full bg-white/75 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-moss">{trip.request.destination} journey route</span>
+    <span className="absolute left-5 top-5 rounded-full bg-white/75 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-moss">Japan journey route</span>
     <span className="absolute bottom-5 left-5 text-xs font-semibold tracking-wide text-moss/70">TOKYO → KYOTO</span>
     <svg className="absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none" aria-label={`Optimized itinerary path for day ${activeDay}`}>
       <polyline points={points} fill="none" stroke="#245B4F" strokeWidth="0.7" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="2.2 1.6" className="animate-pulseRoute" />
@@ -94,7 +99,7 @@ function LiveGoogleMap({ trip, activeDay }: { trip: Trip; activeDay: number }) {
   const key = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined;
   if (!key || key.includes('PASTE_YOUR') || key.includes('your_key')) return null;
   const stops = trip.itinerary.filter((item) => item.day === activeDay).sort((a, b) => a.time.localeCompare(b.time));
-  const routeAnchor = /japan|tokyo/i.test(trip.request.destination) ? 'Tokyo, Japan' : trip.request.destination;
+  const routeAnchor = trip.request.destination.toLowerCase() === 'japan' ? 'Tokyo, Japan' : trip.request.destination;
   // Google geocodes complete stop names much more reliably than the abbreviated
   // labels shown in the itinerary (for example, "Asakusa · Tokyo").
   const locationFor = (item: ItineraryItem) => {
@@ -156,12 +161,24 @@ function TripOverview({ trip, setPage, activeDay, setActiveDay, onReceipt, onRes
 }
 
 function FriendSetup({ trip, onTrip }: { trip: Trip; onTrip: (trip: Trip, note: string) => void }) {
-  const [drafts, setDrafts] = useState(() => trip.travelers.map((friend) => ({ id: friend.id, name: friend.name, phone: friend.phone ?? '' })));
+  const [drafts, setDrafts] = useState(() => trip.travelers.map((friend, index) => ({ id: friend.id, name: index === 0 && friend.name === 'Aya' ? 'Prabhu Siddharth' : friend.name, phone: index === 0 && (!friend.phone || friend.phone === '+1 (415) 555-0101') ? '+14156290471' : toE164Phone(friend.phone), pacePreference: friend.pacePreference, foodPreference: friend.foodPreference, interests: friend.interests })));
   const [saving, setSaving] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newPhone, setNewPhone] = useState('');
+  const [adding, setAdding] = useState(false);
   const rosterKey = trip.travelers.map((friend) => `${friend.id}:${friend.name}:${friend.phone ?? ''}`).join('|');
-  useEffect(() => { setDrafts(trip.travelers.map((friend) => ({ id: friend.id, name: friend.name, phone: friend.phone ?? '' }))); }, [rosterKey]);
+  useEffect(() => { setDrafts(trip.travelers.map((friend, index) => ({ id: friend.id, name: index === 0 && friend.name === 'Aya' ? 'Prabhu Siddharth' : friend.name, phone: index === 0 && (!friend.phone || friend.phone === '+1 (415) 555-0101') ? '+14156290471' : toE164Phone(friend.phone), pacePreference: friend.pacePreference, foodPreference: friend.foodPreference, interests: friend.interests }))); }, [rosterKey]);
+  useEffect(() => {
+    document.querySelectorAll<HTMLInputElement>('.friend-setup input[placeholder="+1 415 555 0101"], .friend-setup input[placeholder="Phone (optional)"]').forEach((field) => {
+      field.required = true;
+      field.pattern = '\\+[1-9][0-9]{7,14}';
+      field.placeholder = '+14156290471';
+      field.title = 'Use E.164 format, for example +14156290471';
+    });
+  }, [drafts.length]);
   const save = async () => {
-    if (drafts.some((friend) => friend.name.trim().length < 2)) { onTrip(trip, 'Add a name for every friend before continuing.'); return; }
+    if (drafts.some((friend) => friend.name.trim().length < 2)) { onTrip(trip, 'Add a name for every traveler before continuing.'); return; }
+    if (drafts.some((friend) => !isE164Phone(friend.phone))) { document.querySelector<HTMLInputElement>('.friend-setup input:invalid')?.reportValidity(); return; }
     setSaving(true);
     try {
       let updated = trip;
@@ -173,7 +190,20 @@ function FriendSetup({ trip, onTrip }: { trip: Trip; onTrip: (trip: Trip, note: 
     } catch (error) { onTrip(trip, error instanceof Error ? error.message : 'Could not save your friends.'); }
     finally { setSaving(false); }
   };
-  return <section className="rounded-[32px] border border-moss/20 bg-[#f6fbf7] p-6 xl:col-span-2"><div className="flex flex-wrap items-start justify-between gap-4"><div><p className="eyebrow text-moss">Friend setup</p><h2 className="mt-1 text-2xl font-bold text-ink">Name the {trip.request.travelers} friends on this trip.</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-stone-600">JourneyOS created one slot per person in your brief. Add names now; phone numbers are optional until you ask JourneyOS to collect their preferences.</p></div><span className="rounded-full bg-white px-3 py-1.5 text-xs font-bold text-moss ring-1 ring-moss/15">{drafts.length} friend slots</span></div><div className="mt-5 grid gap-3 md:grid-cols-2">{drafts.map((friend, index) => <div key={friend.id} className="rounded-2xl bg-white p-4 ring-1 ring-moss/10"><p className="text-xs font-bold uppercase tracking-wider text-stone-400">Friend {index + 1}</p><label className="mt-3 block text-xs font-bold text-stone-500">Name<input value={friend.name} onChange={(event) => setDrafts((current) => current.map((item) => item.id === friend.id ? { ...item, name: event.target.value } : item))} className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2.5 text-sm text-ink" /></label><label className="mt-3 block text-xs font-bold text-stone-500">Phone <span className="font-medium">(optional)</span><input value={friend.phone} onChange={(event) => setDrafts((current) => current.map((item) => item.id === friend.id ? { ...item, phone: event.target.value } : item))} placeholder="+1 415 555 0101" className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2.5 text-sm text-ink" /></label></div>)}</div><button onClick={() => void save()} disabled={saving} className="mt-5 rounded-2xl bg-moss px-5 py-3 text-sm font-bold text-white disabled:opacity-50">{saving ? 'Saving friends…' : 'Save friends'}</button></section>;
+  const addFriend = async () => {
+    if (newName.trim().length < 2) { onTrip(trip, 'Enter a name to add a friend.'); return; }
+    if (!isE164Phone(newPhone)) { document.querySelector<HTMLInputElement>('.friend-setup input:invalid')?.reportValidity(); return; }
+    setAdding(true);
+    try {
+      const response = await api.mutateTraveler({ action: 'add', name: newName.trim(), phone: newPhone.trim() || undefined }, trip);
+      setNewName('');
+      setNewPhone('');
+      onTrip(response.trip, `${newName.trim()} was added. Their preferences can be collected when you start group calls.`);
+    } catch (error) { onTrip(trip, error instanceof Error ? error.message : 'Could not add this friend.'); }
+    finally { setAdding(false); }
+  };
+  const callFor = (id: string) => trip.preferenceCollection?.calls.find((call) => call.travelerId === id);
+  return <section className="friend-setup rounded-[32px] border border-moss/20 bg-[#f6fbf7] p-6 xl:col-span-2"><div className="flex flex-wrap items-start justify-between gap-4"><div><p className="eyebrow text-moss">Friends</p><h2 className="mt-1 text-2xl font-bold text-ink">You + {Math.max(0, drafts.length - 1)} friend{drafts.length === 2 ? '' : 's'}.</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-stone-600">The first slot is always the trip admin. JourneyOS fills their preferences from the initial voice brief; every remaining slot is a friend who can be called for their own preferences.</p></div><span className="rounded-full bg-white px-3 py-1.5 text-xs font-bold text-moss ring-1 ring-moss/15">{drafts.length} travelers</span></div><div className="mt-5 grid gap-3 md:grid-cols-2">{drafts.map((friend, index) => { const call = callFor(friend.id); const isAdmin = index === 0; return <article key={friend.id} className="rounded-2xl bg-white p-4 ring-1 ring-moss/10"><div className="flex items-center justify-between gap-3"><p className="text-xs font-bold uppercase tracking-wider text-stone-400">{isAdmin ? 'Trip admin · you' : `Friend ${index}`}</p><span className={`rounded-full px-2 py-1 text-[10px] font-bold ${isAdmin ? 'bg-ink text-white' : call?.status === 'completed' ? 'bg-emerald-100 text-moss' : call?.status === 'dialing' ? 'bg-amber-100 text-amber-800' : 'bg-stone-100 text-stone-500'}`}>{isAdmin ? 'Brief captured' : call?.status === 'completed' ? 'Preferences ready' : call?.status === 'dialing' ? 'Calling…' : 'Ready to call'}</span></div><label className="mt-3 block text-xs font-bold text-stone-500">Name<input value={friend.name} onChange={(event) => setDrafts((current) => current.map((item) => item.id === friend.id ? { ...item, name: event.target.value } : item))} className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2.5 text-sm text-ink" /></label><label className="mt-3 block text-xs font-bold text-stone-500">Phone <span className="font-medium">(optional)</span><input value={friend.phone} onChange={(event) => setDrafts((current) => current.map((item) => item.id === friend.id ? { ...item, phone: event.target.value } : item))} placeholder="+1 415 555 0101" className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2.5 text-sm text-ink" /></label>{isAdmin && !call && <div className="mt-4 rounded-xl bg-[#eff6f1] p-3"><p className="text-[10px] font-extrabold uppercase tracking-wider text-moss">Preferences from your initial voice brief</p><p className="mt-1 text-xs leading-5 text-stone-700">{friend.pacePreference} pace · {friend.foodPreference}</p><p className="mt-2 text-xs font-semibold text-ink">Priorities: <span className="font-medium text-stone-600">{Object.entries(friend.interests).filter(([, score]) => score >= 5).map(([interest]) => interest).join(' · ') || 'Captured in your trip brief'}</span></p></div>}{call && <div className="mt-4 rounded-xl bg-[#fff8e9] p-3"><p className="text-[10px] font-extrabold uppercase tracking-wider text-coral">Call preference outcome</p><p className="mt-1 text-xs leading-5 text-stone-700">{call.summary}</p>{call.topPriorities.length > 0 && <p className="mt-2 text-xs font-semibold text-ink">Priorities: <span className="font-medium text-stone-600">{call.topPriorities.join(' · ')}</span></p>}{call.status === 'completed' && <p className="mt-2 text-xs font-semibold text-moss">{call.happiness}% plan fit · {call.compromise}</p>}</div>}</article>; })}</div><div className="mt-5 grid gap-2 rounded-2xl border border-dashed border-moss/35 bg-white/75 p-4 sm:grid-cols-[1fr_1fr_auto]"><input value={newName} onChange={(event) => setNewName(event.target.value)} placeholder="New friend’s name" className="rounded-xl border border-stone-200 px-3 py-2.5 text-sm text-ink" /><input value={newPhone} onChange={(event) => setNewPhone(event.target.value)} placeholder="Phone (optional)" className="rounded-xl border border-stone-200 px-3 py-2.5 text-sm text-ink" /><button onClick={() => void addFriend()} disabled={adding || newName.trim().length < 2} className="rounded-xl bg-ink px-4 py-2.5 text-sm font-bold text-white disabled:opacity-40">{adding ? 'Adding…' : 'Add friend'}</button></div><div className="mt-4 flex flex-wrap items-center gap-3"><button onClick={() => void save()} disabled={saving} className="rounded-2xl bg-moss px-5 py-3 text-sm font-bold text-white disabled:opacity-50">{saving ? 'Saving friends…' : 'Save friend details'}</button><p className="text-xs leading-5 text-stone-500">Say your name, phone number, and preferences to the Travel Mediator—or edit them here. Use <b>Collect preferences</b> for the other friends.</p></div></section>;
 }
 
 function VoicePlanner({ trip, onTrip }: { trip: Trip; onTrip: (trip: Trip, note: string) => void }) {
@@ -183,10 +213,6 @@ function VoicePlanner({ trip, onTrip }: { trip: Trip; onTrip: (trip: Trip, note:
   const [speechStatus, setSpeechStatus] = useState('Tap the microphone and allow access when your browser asks.');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{ confidence: number; source: string; summary: string; request: Trip['request'] } | null>(null);
-  const [adminName, setAdminName] = useState('Hema');
-  const [adminPhone, setAdminPhone] = useState('+1 (415) 555-0101');
-  const [phones, setPhones] = useState<Record<string, string>>({ 't-hema': '+14155550101', 't-prabhu': '+14155550148', 't-deepu': '+14155550172', 't-sanjay': '+14155550196' });
-  const [collecting, setCollecting] = useState(false);
   const [reviewTab, setReviewTab] = useState<'plan' | 'people'>('plan');
   const [chunkSeconds, setChunkSeconds] = useState(0);
   const [chunkNumber, setChunkNumber] = useState(1);
@@ -200,8 +226,16 @@ function VoicePlanner({ trip, onTrip }: { trip: Trip; onTrip: (trip: Trip, note:
   const chunkBaseRef = useRef('');
   const appliedVocalBriefRef = useRef('');
   const speechSupported = typeof window !== 'undefined' && Boolean(window.SpeechRecognition || window.webkitSpeechRecognition);
-  const liveVoiceConnected = liveVoice.state === 'connected';
-  const liveVoiceBusy = liveVoice.state === 'connecting' || liveVoice.state === 'waiting_for_agent';
+  const liveVoiceConnected = liveVoice.state === 'connected' || liveVoice.state === 'connecting' || liveVoice.state === 'waiting_for_agent';
+
+  // The persistent voice assistant can finish a mediator conversation from
+  // any page. When it creates the trip, surface the server-polished summary
+  // in this Plan-page brief rather than leaving the raw spoken transcript.
+  useEffect(() => {
+    if (!trip.briefTranscript) return;
+    setConversation(trip.briefTranscript);
+    setResult((current) => current ?? { confidence: 1, source: 'vocal-bridge', summary: trip.briefTranscript ?? '', request: trip.request });
+  }, [trip.briefTranscript, trip.request]);
 
   useEffect(() => {
     const spokenBrief = transcript.filter((entry) => entry.role === 'user').map((entry) => entry.text.trim()).filter(Boolean).join(' ');
@@ -213,7 +247,6 @@ function VoicePlanner({ trip, onTrip }: { trip: Trip; onTrip: (trip: Trip, note:
 
   const toggleLiveVoice = async () => {
     try {
-      if (liveVoiceBusy) return;
       if (liveVoiceConnected) {
         await liveVoice.toggleMicrophone();
         setSpeechStatus(liveVoice.isMicrophoneEnabled ? 'Microphone muted. Tap again when you are ready to continue.' : 'Microphone live. Continue your existing JourneyOS conversation.');
@@ -343,22 +376,12 @@ function VoicePlanner({ trip, onTrip }: { trip: Trip; onTrip: (trip: Trip, note:
     appliedVocalBriefRef.current = spokenBrief;
     void createPlan(spokenBrief, true);
   }, [transcript]);
-  const collectPreferences = async () => {
-    setCollecting(true);
-    try {
-      const response = await api.collectPreferences(adminName, adminPhone, phones, trip);
-      onTrip(response.trip, `${response.collection.calls.length} preference calls completed. The admin-led plan is ready for review.`);
-      setReviewTab('people');
-    } catch (error) { onTrip(trip, error instanceof Error ? error.message : 'Could not collect group preferences.'); }
-    finally { setCollecting(false); }
-  };
   const extracted = result?.request ?? trip.request;
   return <div className="planner-workflow grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
-    <section className="relative overflow-hidden rounded-[32px] bg-[#eff6f1] px-6 py-8 sm:px-10"><div className="relative z-10"><p className="eyebrow text-moss">Live Vocal Bridge voice</p><h1 className="mt-2 font-display text-4xl leading-[0.95] text-ink sm:text-5xl">Tell us where the story goes.</h1><p className="mt-4 max-w-md text-sm leading-6 text-stone-600">Speak naturally with the Travel Mediator. JourneyOS puts your latest spoken trip brief into the plan for review.</p><div className="mt-8 flex flex-col items-center"><button type="button" disabled={liveVoiceBusy} onClick={() => void toggleLiveVoice()} aria-pressed={liveVoiceConnected} aria-label={liveVoiceConnected ? 'End voice conversation' : 'Start voice conversation'} className={`grid h-36 w-36 place-items-center rounded-full border-[10px] border-white shadow-xl transition disabled:cursor-wait disabled:opacity-70 ${liveVoiceConnected ? 'bg-coral text-white animate-pulse' : 'bg-moss text-white hover:scale-105'}`}><Mic size={42} /></button><p className="mt-4 text-sm font-bold text-ink">{liveVoiceBusy ? 'Connecting…' : liveVoiceConnected ? 'Live — tap to mute or unmute' : 'Tap to talk with Travel Mediator'}</p><p className="mt-2 max-w-sm text-center text-xs leading-5 text-stone-500">{liveVoice.error?.message ?? speechStatus}</p><p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-moss/60">{liveVoiceConnected ? 'Vocal Bridge · WebRTC connected' : liveVoiceBusy ? 'Vocal Bridge · establishing WebRTC' : 'Vocal Bridge · secure server token'}</p></div></div><div className="absolute -bottom-12 -right-12 h-60 w-60 rounded-full border-[24px] border-[#d3e8d8]" /></section>
+    <section className="relative overflow-hidden rounded-[32px] bg-[#eff6f1] px-6 py-8 sm:px-10"><div className="relative z-10"><p className="eyebrow text-moss">Live Vocal Bridge voice</p><h1 className="mt-2 font-display text-4xl leading-[0.95] text-ink sm:text-5xl">Tell us where the story goes.</h1><p className="mt-4 max-w-md text-sm leading-6 text-stone-600">Speak naturally with the Travel Mediator. JourneyOS puts your latest spoken trip brief into the plan for review.</p><div className="mt-8 flex flex-col items-center"><button type="button" onClick={() => void toggleLiveVoice()} aria-pressed={liveVoiceConnected} aria-label={liveVoiceConnected ? 'End voice conversation' : 'Start voice conversation'} className={`grid h-36 w-36 place-items-center rounded-full border-[10px] border-white shadow-xl transition ${liveVoiceConnected ? 'bg-coral text-white animate-pulse' : 'bg-moss text-white hover:scale-105'}`}><Mic size={42} /></button><p className="mt-4 text-sm font-bold text-ink">{liveVoice.state === 'connecting' ? 'Connecting…' : liveVoiceConnected ? 'Live — tap to end voice chat' : 'Tap to talk with Travel Mediator'}</p><p className="mt-2 max-w-sm text-center text-xs leading-5 text-stone-500">{liveVoice.error?.message ?? speechStatus}</p><p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-moss/60">{liveVoiceConnected ? 'Vocal Bridge · WebRTC connected' : 'Vocal Bridge · secure server token'}</p></div></div><div className="absolute -bottom-12 -right-12 h-60 w-60 rounded-full border-[24px] border-[#d3e8d8]" /></section>
     <section className="rounded-[32px] border border-stone-200 bg-white p-6 sm:p-8"><div className="flex items-center justify-between"><div><p className="eyebrow">Conversation transcript</p><h2 className="mt-1 text-xl font-bold text-ink">Your travel brief</h2></div><Headphones className="text-moss" /></div><label className="sr-only" htmlFor="trip-conversation">Trip request</label><textarea id="trip-conversation" value={conversation} onChange={(event) => setConversation(event.target.value)} className="mt-5 min-h-36 w-full resize-none rounded-2xl border border-stone-200 bg-stone-50 p-4 text-sm leading-6 text-ink outline-none transition focus:border-moss focus:ring-4 focus:ring-moss/10" /><button onClick={() => void createPlan()} disabled={loading} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-ink px-4 py-3.5 text-sm font-bold text-white transition hover:bg-moss disabled:cursor-wait disabled:opacity-70"><Sparkles size={17} />{loading ? 'Understanding your trip…' : 'Create my trip brief'}</button>{result && <p className="mt-3 text-center text-xs font-semibold text-moss">{result.source === 'mock' ? 'Demo extraction' : 'Vocal Bridge extraction'} · {Math.round(result.confidence * 100)}% confidence</p>}</section>
     <section className="rounded-[32px] border border-stone-200 bg-white p-6 xl:col-span-2"><div className="flex flex-wrap items-end justify-between gap-4"><div><p className="eyebrow">Structured output</p><h2 className="mt-1 text-xl font-bold text-ink">The AI heard the important things.</h2></div><span className="rounded-full bg-[#eff6f1] px-3 py-1.5 text-xs font-bold text-moss">{extracted.travelStyle}</span></div><div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><div className="soft-stat"><span>Flying from</span><strong>{extracted.origin || 'Not specified'}</strong></div><div className="soft-stat"><span>Destination</span><strong>{extracted.destination}</strong></div><div className="soft-stat"><span>Depart</span><strong>{extracted.departureDate || 'Choose in checkout'}</strong></div><div className="soft-stat"><span>Return</span><strong>{extracted.returnDate || 'Choose in checkout'}</strong></div><div className="soft-stat"><span>Time together</span><strong>{extracted.duration} days</strong></div><div className="soft-stat"><span>Group size</span><strong>{extracted.travelers} friends</strong></div><div className="soft-stat"><span>Shared budget</span><strong>{money(extracted.budget)}</strong></div></div><p className="mt-4 text-xs font-semibold text-moss">These details now feed directly into Booking & payment.</p><div className="mt-4 flex flex-wrap gap-2">{extracted.interests.map((interest) => <span className="rounded-full bg-sand px-3 py-1.5 text-xs font-bold capitalize text-ink" key={interest}>{interest}</span>)}{extracted.foodPreferences.map((food) => <span className="rounded-full bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-700" key={food}>{food}</span>)}</div></section>
     {trip.briefTranscript && <FriendSetup trip={trip} onTrip={onTrip} />}
-    <section className="rounded-[32px] border border-moss/20 bg-[#f6fbf7] p-6 xl:col-span-2"><div className="flex flex-wrap items-start justify-between gap-4"><div><p className="eyebrow text-moss">Group preference calls</p><h2 className="mt-1 text-2xl font-bold text-ink">Ask the group, then negotiate the plan.</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-stone-600">JourneyOS gives the trip admin a 1.5× planning weight, then calls each traveler to collect constraints, priorities, and a compromise they can live with.</p></div><span className="rounded-full bg-white px-3 py-1.5 text-xs font-bold text-moss ring-1 ring-moss/15">Admin priority · 1.5×</span></div><div className="mt-6 grid gap-4 lg:grid-cols-4"><label className="rounded-2xl bg-white p-4 ring-1 ring-moss/10"><span className="text-xs font-bold text-stone-500">Trip admin</span><input value={adminName} onChange={(event) => setAdminName(event.target.value)} className="mt-2 w-full bg-transparent text-sm font-bold text-ink outline-none" /></label><label className="rounded-2xl bg-white p-4 ring-1 ring-moss/10"><span className="text-xs font-bold text-stone-500">Admin phone</span><input value={adminPhone} onChange={(event) => setAdminPhone(event.target.value)} className="mt-2 w-full bg-transparent text-sm font-bold text-ink outline-none" /></label>{trip.travelers.filter((traveler) => traveler.name !== adminName).map((traveler) => <label className="rounded-2xl bg-white p-4 ring-1 ring-moss/10" key={traveler.id}><span className="text-xs font-bold text-stone-500">{traveler.name}'s phone</span><input value={phones[traveler.id] ?? ''} onChange={(event) => setPhones((current) => ({ ...current, [traveler.id]: event.target.value }))} className="mt-2 w-full bg-transparent text-sm font-bold text-ink outline-none" /></label>)}</div><button onClick={() => void collectPreferences()} disabled={collecting} className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-moss px-4 py-3.5 text-sm font-bold text-white transition hover:bg-ink disabled:cursor-wait disabled:opacity-70"><Phone size={17} />{collecting ? 'Calling travelers and negotiating…' : 'Collect preferences'}</button><p className="mt-3 text-center text-xs leading-5 text-stone-500">Demo mode simulates consented preference calls. With Vocal Bridge credentials configured, this action sends the listed phone numbers to its call workflow.</p></section>
     {trip.preferenceCollection && <section className="rounded-[32px] border border-stone-200 bg-white p-6 xl:col-span-2"><div className="flex flex-wrap items-center justify-between gap-4"><div><p className="eyebrow">Admin review</p><h2 className="mt-1 text-2xl font-bold text-ink">Ready for {trip.preferenceCollection.adminName}'s decision.</h2></div><div className="flex rounded-xl bg-stone-100 p-1"><button onClick={() => setReviewTab('plan')} className={`rounded-lg px-3 py-2 text-xs font-bold ${reviewTab === 'plan' ? 'bg-white text-ink shadow-sm' : 'text-stone-500'}`}>Negotiated plan</button><button onClick={() => setReviewTab('people')} className={`rounded-lg px-3 py-2 text-xs font-bold ${reviewTab === 'people' ? 'bg-white text-ink shadow-sm' : 'text-stone-500'}`}>People & happiness</button></div></div>{reviewTab === 'plan' ? <div className="mt-5 rounded-2xl bg-[#fff8e9] p-5"><p className="text-sm font-bold text-ink">{trip.preferenceCollection.approvalSummary}</p><p className="mt-3 border-l-2 border-coral pl-4 text-sm leading-6 text-stone-600">{trip.preferenceCollection.negotiation}</p><div className="mt-4 flex items-center gap-2 text-xs font-bold text-moss"><CheckCircle2 size={16} /> {trip.preferenceCollection.source === 'mock' ? 'Simulated Vocal Bridge conversations complete' : 'Vocal Bridge conversations complete'}</div></div> : <div className="mt-5 grid gap-3 md:grid-cols-3">{trip.preferenceCollection.calls.map((call) => <article className="rounded-2xl bg-[#fafbf9] p-4" key={call.travelerId}><div className="flex items-center justify-between"><p className="font-bold text-ink">{call.name}</p><span className="rounded-full bg-emerald-100 px-2 py-1 text-[10px] font-bold text-moss">{call.happiness}% happy</span></div><p className="mt-3 text-xs leading-5 text-stone-600">{call.summary}</p><p className="mt-3 text-xs font-semibold text-ink">Compromise: <span className="font-medium text-stone-600">{call.compromise}</span></p></article>)}</div>}</section>}
   </div>;
 }
@@ -522,8 +545,8 @@ function PreferenceDecision({ trip, onTrip }: { trip: Trip; onTrip: (trip: Trip,
 }
 
 function MayaCallConversation({ trip, onTrip }: { trip: Trip; onTrip: (trip: Trip, note: string) => void }) {
-  const mayaCall = trip.preferenceCollection?.calls.find((call) => call.name === 'Prabhu' || call.name === 'Maya');
-  const [lines, setLines] = useState<Array<{ speaker: 'JourneyOS' | 'Prabhu'; text: string }>>([]);
+  const mayaCall = trip.preferenceCollection?.calls.find((call) => call.name === 'Maya');
+  const [lines, setLines] = useState<Array<{ speaker: 'JourneyOS' | 'Maya'; text: string }>>([]);
   const [visible, setVisible] = useState(false);
   const startedFor = useRef<string | null>(null);
   const onTripRef = useRef(onTrip);
@@ -533,18 +556,18 @@ function MayaCallConversation({ trip, onTrip }: { trip: Trip; onTrip: (trip: Tri
     startedFor.current = trip.id;
     setVisible(true);
     setLines([]);
-    const script: Array<{ speaker: 'JourneyOS' | 'Prabhu'; text: string }> = [
-      { speaker: 'Prabhu', text: 'Hi.' },
-      { speaker: 'JourneyOS', text: 'Hi Prabhu, I’m helping your friend group plan Tokyo. What is the one thing you definitely want to do?' },
-      { speaker: 'Prabhu', text: 'I want anime shopping in Akihabara.' },
+    const script: Array<{ speaker: 'JourneyOS' | 'Maya'; text: string }> = [
+      { speaker: 'Maya', text: 'Hi.' },
+      { speaker: 'JourneyOS', text: 'Hi Maya, I’m helping your family plan Tokyo. What is the one thing you definitely want to do?' },
+      { speaker: 'Maya', text: 'I want anime shopping in Akihabara.' },
       { speaker: 'JourneyOS', text: 'Anything you would rather avoid?' },
-      { speaker: 'Prabhu', text: 'Too many temples and early mornings.' },
+      { speaker: 'Maya', text: 'Too many temples and early mornings.' },
       { speaker: 'JourneyOS', text: 'How much walking are you comfortable with?' },
-      { speaker: 'Prabhu', text: 'Moderate walking is fine.' },
+      { speaker: 'Maya', text: 'Moderate walking is fine.' },
     ];
     const timers = script.map((line, index) => window.setTimeout(() => setLines((current) => [...current, line]), 900 + index * 1000));
     const finish = window.setTimeout(() => {
-      void api.simulatePrabhuInterview(trip)
+      void api.simulateMayaInterview(trip)
         .then((response) => onTripRef.current(response.trip, response.summary))
         .catch((error: Error) => onTripRef.current(trip, error.message));
     }, 900 + script.length * 1000);
@@ -552,7 +575,7 @@ function MayaCallConversation({ trip, onTrip }: { trip: Trip; onTrip: (trip: Tri
   }, [mayaCall?.status, trip]);
   if (!visible) return null;
   const complete = mayaCall?.status === 'completed';
-  return <aside className="fixed bottom-5 left-5 z-50 w-[min(420px,calc(100vw-2.5rem))] overflow-hidden rounded-[28px] border border-violet-200 bg-white shadow-2xl"><div className="bg-violet-800 px-5 py-4 text-white"><div className="flex items-center justify-between"><div><p className="text-[10px] font-bold uppercase tracking-[0.14em] text-violet-200">Vocal Bridge outbound call</p><h2 className="mt-1 font-bold">{complete ? 'Maya’s preferences collected' : lines.length ? 'Connected · live preference interview' : 'Calling Maya…'}</h2></div><span className="rounded-full bg-white/15 px-2.5 py-1 text-[10px] font-bold">Simulated friend agent</span></div></div><div className="max-h-[360px] space-y-2 overflow-y-auto p-4">{lines.map((line, index) => <div key={index} className={`rounded-2xl px-3 py-2.5 text-sm leading-5 ${line.speaker === 'JourneyOS' ? 'mr-8 bg-ink text-white' : 'ml-8 bg-violet-100 text-ink'}`}><b>{line.speaker}:</b> {line.text}</div>)}{complete && <div className="mt-3 rounded-2xl bg-[#eff6f1] p-3 text-sm leading-6 text-ink"><b className="text-moss">Updated:</b> Akihabara is protected on Day 2, the early shrine moves later, and Maya’s plan fit rises from 42% to 81%.</div>}</div></aside>;
+  return <aside className="fixed bottom-5 left-5 z-50 w-[min(420px,calc(100vw-2.5rem))] overflow-hidden rounded-[28px] border border-violet-200 bg-white shadow-2xl"><div className="bg-violet-800 px-5 py-4 text-white"><div className="flex items-center justify-between"><div><p className="text-[10px] font-bold uppercase tracking-[0.14em] text-violet-200">Vocal Bridge outbound call</p><h2 className="mt-1 font-bold">{complete ? 'Maya’s preferences collected' : lines.length ? 'Connected · live preference interview' : 'Calling Maya…'}</h2></div><span className="rounded-full bg-white/15 px-2.5 py-1 text-[10px] font-bold">Simulated daughter agent</span></div></div><div className="max-h-[360px] space-y-2 overflow-y-auto p-4">{lines.map((line, index) => <div key={index} className={`rounded-2xl px-3 py-2.5 text-sm leading-5 ${line.speaker === 'JourneyOS' ? 'mr-8 bg-ink text-white' : 'ml-8 bg-violet-100 text-ink'}`}><b>{line.speaker}:</b> {line.text}</div>)}{complete && <div className="mt-3 rounded-2xl bg-[#eff6f1] p-3 text-sm leading-6 text-ink"><b className="text-moss">Updated:</b> Akihabara is protected on Day 2, the early shrine moves later, and Maya’s plan fit rises from 42% to 81%.</div>}</div></aside>;
 }
 
 function PersistentVoiceAssistant({ trip, page, onTrip }: { trip: Trip; page: Page; onTrip: (trip: Trip, note: string) => void }) {
@@ -562,10 +585,11 @@ function PersistentVoiceAssistant({ trip, page, onTrip }: { trip: Trip; page: Pa
   const tripRef = useRef(trip);
   const onTripRef = useRef(onTrip);
   const appliedBriefRef = useRef('');
-  const connected = liveVoice.state === 'connected';
-  const sessionBusy = liveVoice.state === 'connecting' || liveVoice.state === 'waiting_for_agent';
+  const [showTranscript, setShowTranscript] = useState(false);
+  const connected = liveVoice.state === 'connected' || liveVoice.state === 'connecting' || liveVoice.state === 'waiting_for_agent';
   const micEnabled = liveVoice.isMicrophoneEnabled;
   const pageLabel: Record<Page, string> = { home: 'Trip dashboard', planner: 'Planning', checkout: 'Booking and payment', live: 'Live trip', expenses: 'Expenses and settlement', dna: 'Travel DNA' };
+  const polishedSummary = trip.briefTranscript || `You are planning a ${trip.request.duration}-day trip from ${trip.request.origin ?? 'your origin'} to ${trip.request.destination} for ${trip.request.travelers} travelers, with a total budget of $${trip.request.budget.toLocaleString()}. Priorities include ${trip.request.interests.join(', ')}${trip.request.foodPreferences.length ? `, with ${trip.request.foodPreferences.join(', ')} food preferences` : ''}.`;
 
   useEffect(() => { tripRef.current = trip; onTripRef.current = onTrip; }, [trip, onTrip]);
 
@@ -580,7 +604,7 @@ function PersistentVoiceAssistant({ trip, page, onTrip }: { trip: Trip; page: Pa
       friends: trip.travelers.map((friend) => friend.name),
       selectedFlight: trip.flights.find((flight) => flight.selected)?.code,
       selectedHotel: trip.hotels.find((hotel) => hotel.selected)?.name,
-      instruction: 'Use this as the current app context. Give concise help and act through structured actions when asked: navigate(page), trip_brief_ready(conversation), select_bundle(id), select_flight(id), select_hotel(id), confirm_booking, collect_payment, show_day(day), apply_compromise, or confirm_change. Never claim an action succeeded unless you emitted it.',
+      instruction: 'Use this as the current app context. Give concise help relevant to the current page and do not ask for facts already listed.',
     });
   }, [connected, page, sendAction, trip]);
 
@@ -598,59 +622,28 @@ function PersistentVoiceAssistant({ trip, page, onTrip }: { trip: Trip; page: Pa
     void applyBrief(brief);
   }), [onAction, transcript]);
 
-  useEffect(() => onAction('collect_prabhu_preferences', () => {
+  useEffect(() => onAction('collect_maya_preferences', () => {
     void liveVoice.disconnect();
-    void api.callPrabhu(tripRef.current)
+    void api.callMaya(tripRef.current)
       .then((response) => onTripRef.current(response.trip, 'JourneyOS is calling Maya’s simulated friend agent through Vocal Bridge.'))
       .catch((error: Error) => onTripRef.current(tripRef.current, error.message));
   }), [liveVoice, onAction]);
-
-  useEffect(() => onAction('select_flight', (payload) => {
-    const requested = typeof payload.id === 'string' ? payload.id : undefined;
-    const candidate = tripRef.current.flights.find((item) => item.id === requested)
-      ?? tripRef.current.flights.find((item) => /american airlines/i.test(item.airline))
-      ?? tripRef.current.flights[0];
-    if (!candidate) return;
-    void api.selectFlight(candidate.id, tripRef.current)
-      .then((response) => onTripRef.current(response.trip, `${candidate.airline} ${candidate.code} selected by JourneyOS Voice.`))
-      .catch((error: Error) => onTripRef.current(tripRef.current, error.message));
-  }), [onAction]);
-
-  useEffect(() => onAction('select_hotel', (payload) => {
-    const requested = typeof payload.id === 'string' ? payload.id : undefined;
-    const candidate = tripRef.current.hotels.find((item) => item.id === requested) ?? tripRef.current.hotels[0];
-    if (!candidate) return;
-    void api.selectHotel(candidate.id, tripRef.current)
-      .then((response) => onTripRef.current(response.trip, `${candidate.name} selected by JourneyOS Voice.`))
-      .catch((error: Error) => onTripRef.current(tripRef.current, error.message));
-  }), [onAction]);
-
-  useEffect(() => onAction('apply_compromise', () => {
-    void api.approvePreferences(tripRef.current.groupPreference.interestScores, tripRef.current)
-      .then((response) => onTripRef.current(response.trip, 'The negotiated group compromise is approved and the trip has been updated.'))
-      .catch((error: Error) => onTripRef.current(tripRef.current, error.message));
-  }), [onAction]);
-
-  useEffect(() => onAction('confirm_change', () => {
-    void api.replan('flight-delay', tripRef.current, 1)
-      .then((response) => onTripRef.current(response.trip, 'The four-hour delay recovery is confirmed and synchronized.'))
-      .catch((error: Error) => onTripRef.current(tripRef.current, error.message));
-  }), [onAction]);
 
   const toggle = async () => {
     try {
       // Keep one conversation alive as the user moves between pages. A second
       // press only mutes/unmutes; ending a session is an explicit action.
       if (connected) await liveVoice.toggleMicrophone();
-      else if (!sessionBusy) await liveVoice.connect();
+      else await liveVoice.connect();
     } catch (error) { onTripRef.current(tripRef.current, error instanceof Error ? error.message : 'Could not connect to the Travel Mediator.'); }
   };
 
   return <aside className="fixed bottom-5 right-5 z-[60] flex items-center gap-3 rounded-2xl border border-moss/20 bg-white p-3 shadow-xl">
-    <div className="hidden max-w-[200px] sm:block"><p className="text-[10px] font-bold uppercase tracking-wider text-moss">JourneyOS voice</p><p className="mt-0.5 text-xs font-semibold text-ink">{connected ? `${pageLabel[page]} · ${micEnabled ? 'listening' : 'muted'}` : 'Available on every page'}</p></div>
-    {liveVoice.error && <p className="max-w-[260px] text-xs font-semibold text-coral">{liveVoice.error.message}</p>}
-    {connected && <button onClick={() => void liveVoice.disconnect()} aria-label="End JourneyOS voice session" className="rounded-lg px-2 py-1 text-[10px] font-bold text-stone-500 hover:bg-stone-100">End</button>}
-    <button disabled={sessionBusy} onClick={() => void toggle()} aria-label={connected ? (micEnabled ? 'Mute JourneyOS microphone' : 'Unmute JourneyOS microphone') : 'Talk to JourneyOS'} className={`grid h-12 w-12 place-items-center rounded-xl text-white transition disabled:cursor-wait disabled:opacity-70 ${connected && micEnabled ? 'animate-pulse bg-coral' : 'bg-moss hover:bg-ink'}`}><Mic size={20} /></button>
+    {showTranscript && <div className="absolute bottom-[calc(100%+12px)] right-0 w-[min(420px,calc(100vw-2.5rem))] overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-2xl"><div className="flex items-center justify-between bg-ink px-4 py-3 text-white"><div><p className="text-[10px] font-bold uppercase tracking-wider text-emerald-200">Live mediator transcript</p><p className="mt-1 text-sm font-bold">Your conversation</p></div><button onClick={() => setShowTranscript(false)} className="text-xs font-bold text-white/70 hover:text-white">Close</button></div><div className="max-h-64 space-y-2 overflow-y-auto p-4">{transcript.length ? transcript.slice(-12).map((entry, index) => <div key={`${entry.role}-${index}`} className={`rounded-xl px-3 py-2 text-xs leading-5 ${entry.role === 'user' ? 'ml-8 bg-[#eff6f1] text-ink' : 'mr-8 bg-stone-100 text-stone-700'}`}><b>{entry.role === 'user' ? 'You' : 'JourneyOS'}:</b> {entry.text}</div>) : <p className="text-sm text-stone-500">Start talking to the Travel Mediator and your live transcript will appear here.</p>}</div><div className="border-t border-stone-100 bg-[#fff8e9] p-4"><p className="text-[10px] font-extrabold uppercase tracking-wider text-coral">Trip brief summary</p><p className="mt-2 text-sm leading-6 text-ink">{polishedSummary}</p></div></div>}
+    <div className="hidden max-w-[200px] sm:block"><p className="text-[10px] font-bold uppercase tracking-wider text-moss">JourneyOS voice</p><p className="mt-0.5 text-xs font-semibold text-ink">Powered by Vocal Bridge</p></div>
+    <button onClick={() => setShowTranscript((current) => !current)} className="rounded-lg px-2 py-1 text-[10px] font-bold text-moss hover:bg-[#eff6f1]">Transcript</button>
+    {connected && <button onClick={() => void liveVoice.disconnect()} aria-label="End JourneyOS voice call" className="rounded-lg px-2 py-1 text-[10px] font-bold text-stone-500 hover:bg-stone-100">End call</button>}
+    <button onClick={() => void toggle()} aria-label={connected ? (micEnabled ? 'Mute JourneyOS microphone' : 'Unmute JourneyOS microphone') : 'Talk to JourneyOS'} className={`grid h-12 w-12 place-items-center rounded-xl text-white transition ${connected && micEnabled ? 'animate-pulse bg-coral' : 'bg-moss hover:bg-ink'}`}><Mic size={20} /></button>
   </aside>;
 }
 
@@ -660,16 +653,6 @@ function App() {
   const [activeDay, setActiveDay] = useState(1);
   const [notice, setNotice] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
-  const { onAction } = useAgentActions();
-
-  useEffect(() => onAction('navigate', (payload) => {
-    const requested = payload.page;
-    if (requested === 'home' || requested === 'planner' || requested === 'checkout' || requested === 'live' || requested === 'expenses' || requested === 'dna') setPage(requested);
-  }), [onAction]);
-  useEffect(() => onAction('show_day', (payload) => {
-    const requested = Number(payload.day);
-    if (Number.isInteger(requested) && requested > 0) { setActiveDay(requested); setPage('live'); }
-  }), [onAction]);
 
   useEffect(() => {
     const saved = window.localStorage.getItem('journeyos-active-trip');
@@ -677,13 +660,37 @@ function App() {
     try { void api.hydrateTrip(JSON.parse(saved) as Trip).then(({ trip: restored }) => setTrip(restored)).catch((error: Error) => setNotice(`Could not restore your active trip: ${error.message}`)); }
     catch { window.localStorage.removeItem('journeyos-active-trip'); void api.getDemo().then(({ trip: seeded }) => setTrip(seeded)); }
   }, []);
+
+  // Voice calls finish outside the browser. While one is active, periodically
+  // pull the secure server-side callback result into the visible friend cards.
+  useEffect(() => {
+    const hasActivePreferenceCall = trip?.preferenceCollection?.calls.some((call) => ['queued', 'dialing', 'connected'].includes(call.status));
+    if (!hasActivePreferenceCall) return;
+    let disposed = false;
+    const syncPreferenceCalls = async () => {
+      try {
+        const remote = await api.getDemo();
+        if (disposed) return;
+        const localCalls = JSON.stringify(trip?.preferenceCollection?.calls ?? []);
+        const remoteCalls = JSON.stringify(remote.trip.preferenceCollection?.calls ?? []);
+        if (localCalls !== remoteCalls) {
+          setTrip(remote.trip);
+          window.localStorage.setItem('journeyos-active-trip', JSON.stringify(remote.trip));
+          setNotice('A friend preference call was updated.');
+        }
+      } catch { /* keep the current UI if the local API is temporarily unavailable */ }
+    };
+    void syncPreferenceCalls();
+    const interval = window.setInterval(() => void syncPreferenceCalls(), 3000);
+    return () => { disposed = true; window.clearInterval(interval); };
+  }, [trip?.preferenceCollection?.calls]);
   const onTrip = (updated: Trip, message: string) => { setTrip(updated); window.localStorage.setItem('journeyos-active-trip', JSON.stringify(updated)); setNotice(message); window.setTimeout(() => setNotice(null), 4200); };
   const title = useMemo(() => nav.find((item) => item.id === page)?.label ?? 'JourneyOS', [page]);
   const hasTripBrief = Boolean(trip?.briefTranscript);
-  const resetDemo = async () => { try { const response = await api.resetTrip(); setActiveDay(1); setPage('home'); onTrip(response.trip, 'Demo reset to Hema, Prabhu, Deepu and Sanjay\u2019s Tokyo trip.'); } catch (error) { setNotice(error instanceof Error ? error.message : 'Could not reset the demo.'); } };
+  const resetDemo = async () => { try { const response = await api.resetTrip(); setActiveDay(1); onTrip(response.trip, 'Demo reset to the deterministic Japan starting state.'); } catch (error) { setNotice(error instanceof Error ? error.message : 'Could not reset the demo.'); } };
   const scanReceipt = async () => { if (!trip) return; try { const response = await api.scanReceipt(trip); onTrip(response.trip, `${response.receipt.restaurant} receipt scanned — ${money(response.receipt.amount)} added to live spend.`); } catch (error) { setNotice(error instanceof Error ? error.message : 'Could not scan receipt.'); } };
   if (!trip) return <main className="grid min-h-screen place-items-center bg-cream"><div className="text-center"><div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-moss text-white animate-pulse"><Sparkles /></div><p className="mt-4 text-sm font-bold text-ink">Opening your journey…</p></div></main>;
-  const content = page === 'home' ? <><TripOverview trip={trip} setPage={setPage} activeDay={activeDay} setActiveDay={setActiveDay} onReceipt={() => void scanReceipt()} onReset={() => void resetDemo()} />{hasTripBrief && <div className="mt-6"><TravelerFitOverview trip={trip} /></div>}</> : page === 'planner' ? <><VoicePlanner trip={trip} onTrip={onTrip} /><GroupPlanningPanel trip={trip} onTrip={onTrip} /><DecisionStudio trip={trip} onTrip={onTrip} /></> : page === 'checkout' ? <BookingExperience trip={trip} onTrip={onTrip} /> : page === 'live' ? <><JourneyMap trip={trip} activeDay={activeDay} setActiveDay={setActiveDay} /><MapOptimizationPanel trip={trip} activeDay={activeDay} onTrip={onTrip} /><DisruptionDemo trip={trip} activeDay={activeDay} onTrip={onTrip} /></> : page === 'expenses' ? <ExpenseLedger trip={trip} onTrip={onTrip} /> : <TravelDnaPanel trip={trip} />;
+  const content = page === 'home' ? <><TripOverview trip={trip} setPage={setPage} activeDay={activeDay} setActiveDay={setActiveDay} onReceipt={() => void scanReceipt()} onReset={() => void resetDemo()} />{hasTripBrief && <div className="mt-6"><TravelerFitOverview trip={trip} /></div>}</> : page === 'planner' ? <><VoicePlanner trip={trip} onTrip={onTrip} /><GroupPlanningPanel trip={trip} onTrip={onTrip} /><DecisionStudio trip={trip} onTrip={onTrip} /></> : page === 'checkout' ? <BookingExperience trip={trip} onTrip={onTrip} /> : page === 'live' ? <><MapOptimizationPanel trip={trip} activeDay={activeDay} onTrip={onTrip} /><JourneyMap trip={trip} activeDay={activeDay} setActiveDay={setActiveDay} /><DisruptionDemo trip={trip} activeDay={activeDay} onTrip={onTrip} /></> : page === 'expenses' ? <ExpenseLedger trip={trip} onTrip={onTrip} /> : <TravelDnaPanel trip={trip} />;
   return <div className="min-h-screen bg-cream text-ink"><aside className="fixed inset-y-0 left-0 z-40 hidden w-[248px] flex-col border-r border-stone-200 bg-white px-5 py-6 lg:flex"><div className="flex items-center gap-3 px-2"><span className="grid h-10 w-10 place-items-center rounded-2xl bg-ink text-lg font-bold text-white">J</span><div><p className="font-display text-2xl leading-none text-ink">JourneyOS</p><p className="mt-1 text-[10px] font-bold uppercase tracking-[0.16em] text-moss">Travel, arranged.</p></div></div><nav className="mt-10 space-y-1">{nav.map(({ id, label, icon: Icon }) => <button key={id} onClick={() => setPage(id)} className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold transition ${page === id ? 'bg-[#eff6f1] text-moss' : 'text-stone-500 hover:bg-stone-50 hover:text-ink'}`}><Icon size={18} />{label}</button>)}</nav><div className="mt-auto rounded-2xl bg-ink p-4 text-white"><p className="text-xs font-bold">Your travel DNA is learning.</p><p className="mt-2 text-xs leading-5 text-white/60">Each choice makes the next trip feel more like you.</p><div className="mt-3 flex items-center gap-1.5"><Sparkles size={14} className="text-amber-300" /><span className="text-xs font-bold text-amber-100">Culture-forward</span></div></div></aside><header className="sticky top-0 z-30 border-b border-stone-200 bg-cream/90 px-5 py-4 backdrop-blur lg:ml-[248px] lg:px-9"><div className="mx-auto flex max-w-[1400px] items-center justify-between"><div className="flex items-center gap-3"><button onClick={() => setMenuOpen(!menuOpen)} className="grid h-9 w-9 place-items-center rounded-xl bg-white text-ink ring-1 ring-stone-200 lg:hidden"><Map size={17} /></button><div><p className="text-[10px] font-bold uppercase tracking-[0.14em] text-stone-400">{hasTripBrief ? trip.dates : 'Trip brief needed'}</p><h2 className="text-sm font-bold text-ink">{title}</h2></div></div><div className="flex items-center gap-2"><span className="hidden rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-stone-500 ring-1 ring-stone-200 sm:inline-flex">{hasTripBrief ? `${trip.travelers.length} friends` : 'No friends added yet'}</span><span className="grid h-9 w-9 place-items-center rounded-full bg-coral text-xs font-bold text-white">AY</span></div></div>{menuOpen && <div className="mx-auto mt-4 max-w-[1400px] rounded-2xl bg-white p-2 shadow-lg ring-1 ring-stone-200 lg:hidden">{nav.map(({ id, label, icon: Icon }) => <button onClick={() => { setPage(id); setMenuOpen(false); }} className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold ${page === id ? 'bg-[#eff6f1] text-moss' : 'text-stone-600'}`} key={id}><Icon size={17} />{label}</button>)}</div>}</header><main className="px-5 py-7 lg:ml-[248px] lg:px-9"><div className="mx-auto max-w-[1400px]">{content}</div></main><PersistentVoiceAssistant trip={trip} page={page} onTrip={onTrip} /><MayaCallConversation trip={trip} onTrip={onTrip} />{notice && <div className="fixed bottom-24 right-5 z-50 max-w-sm rounded-2xl bg-ink px-4 py-3 text-sm font-semibold text-white shadow-2xl"><div className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 shrink-0 text-[#8fe0b7]" size={17} /><span>{notice}</span></div></div>}</div>;
 }
 

@@ -18,6 +18,19 @@ const route = (id: string, day: number, time: string, title: string, subtitle: s
 });
 
 const MAX_ITINERARY_DAYS = 14;
+const DEFAULT_ADMIN = { name: 'Prabhu Siddharth', phone: '+14156290471' };
+const adminFromBrief = (brief: string | undefined, request: Trip['request']): Traveler => {
+  const nameMatch = brief?.match(/(?:my name is|i am|i'm)\s+([a-z][a-z '-]{1,50})(?=[,.]|\s+(?:and|from|with|for|my|i)|$)/i)?.[1]?.trim();
+  const phoneMatch = brief?.match(/(?:my (?:phone|number) is|call me at|my phone number is)\s*(\+?[\d().\s-]{7,})/i)?.[1];
+  const name = nameMatch && !/^(planning|traveling|going|calling)\b/i.test(nameMatch) ? nameMatch.replace(/\b\w/g, (letter) => letter.toUpperCase()) : DEFAULT_ADMIN.name;
+  const phone = phoneMatch ? `+${phoneMatch.replace(/\D/g, '')}` : DEFAULT_ADMIN.phone;
+  const preferenceScores = request.interests.reduce<Partial<Record<Interest, number>>>((scores, interest) => ({ ...scores, [interest]: 5 }), {});
+  const pacePreference: Traveler['pacePreference'] = /slow|relax|easy|unhurried/i.test(request.travelStyle) ? 'easy' : /fast|packed|adventure|high-energy/i.test(request.travelStyle) ? 'full' : 'balanced';
+  return {
+    id: 't-admin', name, phone, initials: name.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase(), budgetPreference: 'balanced', activityLevel: pacePreference === 'full' ? 4 : pacePreference === 'easy' ? 2 : 3,
+    pacePreference, foodPreference: request.foodPreferences.length ? request.foodPreferences.join(' · ') : 'Preferences from your brief', interests: interests(preferenceScores),
+  };
+};
 const normalizedTripDates = (departureInput: string | undefined, returnInput: string | undefined, fallbackDuration: number) => {
   const departureDate = departureInput ?? '2026-10-12';
   const departure = new Date(`${departureDate}T12:00:00Z`);
@@ -366,6 +379,57 @@ export class DemoStore {
     return this.getTrip();
   }
 
+  completePreferenceCall(input: {
+    travelerId: string;
+    outcome: 'completed' | 'no-answer' | 'failed' | 'canceled';
+    mustDo?: string[];
+    avoid?: string[];
+    pace?: string;
+    food?: string;
+    summary: string;
+  }): Trip {
+    const collection = this.trip.preferenceCollection;
+    if (!collection) throw new Error('Start preference calls before submitting a call result.');
+    const traveler = this.trip.travelers.find((item) => item.id === input.travelerId)
+      ?? this.trip.travelers.find((item) => item.name.toLowerCase() === input.travelerId.trim().toLowerCase());
+    const call = traveler ? collection.calls.find((item) => item.travelerId === traveler.id) : undefined;
+    if (!traveler || !call) throw new Error('The traveler is not part of the active preference calls.');
+
+    const mustDo = input.mustDo?.filter(Boolean) ?? [];
+    const avoid = input.avoid?.filter(Boolean) ?? [];
+    const priorities = [...mustDo, ...(input.food ? [input.food] : []), ...(input.pace ? [`${input.pace} pace`] : [])].slice(0, 4);
+    Object.assign(call, {
+      status: input.outcome,
+      summary: input.summary,
+      topPriorities: input.outcome === 'completed' ? priorities : [],
+      compromise: input.outcome === 'completed'
+        ? `${mustDo.length ? `Protect ${mustDo[0]}. ` : ''}${avoid.length ? `Avoid ${avoid.join(' and ')}. ` : ''}JourneyOS will rebalance the group itinerary.`
+        : input.outcome === 'no-answer' ? 'No preferences were collected; keep this traveler’s plan fit neutral until they respond.' : 'No preferences were collected from this call.',
+    });
+
+    if (input.outcome === 'completed') {
+      const pace = /^(easy|slow|relaxed|unhurried)$/i.test(input.pace ?? '') ? 'easy' : /^(full|fast|packed|active)$/i.test(input.pace ?? '') ? 'full' : 'balanced';
+      const preferenceText = `${mustDo.join(' ')} ${avoid.join(' ')} ${input.food ?? ''}`.toLowerCase();
+      const nextInterests = { ...traveler.interests };
+      if (/anime|shopping|market|fashion/.test(preferenceText)) nextInterests.shopping = 5;
+      if (/food|street food|restaurant|sushi|vegetarian|vegan/.test(preferenceText)) nextInterests.food = 5;
+      if (/museum|history|temple|culture|art/.test(preferenceText)) { nextInterests.culture = 5; nextInterests.history = Math.max(nextInterests.history, 4); }
+      if (/photo|photography|view|scenic/.test(preferenceText)) nextInterests.photography = 5;
+      if (/nature|hike|park|beach/.test(preferenceText)) nextInterests.nature = 5;
+      Object.assign(traveler, { pacePreference: pace, activityLevel: pace === 'easy' ? 2 : pace === 'full' ? 4 : 3, ...(input.food ? { foodPreference: input.food } : {}), interests: nextInterests });
+      this.afterTravelerChange(`${traveler.name}'s voice preferences were collected`);
+    } else {
+      this.recalculateHappiness();
+      this.trip.events.unshift({ id: `preference-call-${Date.now()}`, type: 'tired', title: `${traveler.name}'s preference call ${input.outcome}`, createdAt: new Date().toISOString(), explanation: input.summary });
+    }
+
+    const completed = collection.calls.filter((item) => item.status === 'completed').length;
+    collection.approvalSummary = completed
+      ? `${completed} traveler preference${completed === 1 ? '' : 's'} collected. JourneyOS has refreshed group fit and the compromise route.`
+      : 'No preference calls have completed yet.';
+    return this.getTrip();
+  }
+
   completeSimulatedPrabhuInterview(): Trip {
     const maya = this.trip.travelers.find((traveler) => traveler.name === 'Prabhu') ?? this.trip.travelers[1];
     if (!maya) throw new Error('Add a traveler before starting the preference interview.');
@@ -460,14 +524,14 @@ export class DemoStore {
     const departure = new Date(`${departureDate}T12:00:00Z`);
     const returning = new Date(`${returnDate}T12:00:00Z`);
     this.trip.dates = `${departure.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}–${returning.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}`;
-    // Keep the four named friends when the canonical Tokyo voice brief is used.
-    // A genuinely new destination still receives editable friend placeholders.
-    const canonicalTokyoBrief = /tokyo/i.test(normalizedRequest.destination) && normalizedRequest.travelers === 4;
-    if (!hadPriorBrief && !canonicalTokyoBrief) this.trip.travelers = [];
+    // Partner voice flow: the first traveler is the organizer inferred from
+    // the brief; the remaining slots are friends who can receive preference calls.
+    if (!hadPriorBrief) this.trip.travelers = [adminFromBrief(briefTranscript, normalizedRequest)];
     this.trip.travelers = this.trip.travelers.slice(0, Math.max(1, normalizedRequest.travelers));
     while (this.trip.travelers.length < normalizedRequest.travelers) {
       const number = this.trip.travelers.length + 1;
-      this.trip.travelers.push({ id: `t-friend-${number}-${Date.now().toString(36)}`, name: `Friend ${number}`, initials: `F${number}`, budgetPreference: 'balanced', activityLevel: 3, pacePreference: 'balanced', foodPreference: 'No preference added', interests: interests({ culture: 3, food: 3, nature: 3 }) });
+      const friendNumber = number - 1;
+      this.trip.travelers.push({ id: `t-friend-${friendNumber}-${Date.now().toString(36)}`, name: `Friend ${friendNumber}`, initials: `F${friendNumber}`, budgetPreference: 'balanced', activityLevel: 3, pacePreference: 'balanced', foodPreference: 'No preference added', interests: interests({ culture: 3, food: 3, nature: 3 }) });
     }
     this.setBookingOptions(normalizedRequest.destination, normalizedRequest.origin);
     this.trip.name = `${normalizedRequest.destination}, together`;

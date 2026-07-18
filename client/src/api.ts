@@ -19,6 +19,10 @@ export const api = {
   approvePreferences: (interestScores: Trip['groupPreference']['interestScores'], trip: Trip) => request<{ trip: Trip }>('/api/planner/approve-preferences', { method: 'POST', body: JSON.stringify({ interestScores, trip }) }),
   simulatePrabhuInterview: (trip: Trip) => request<{ trip: Trip; summary: string }>('/api/planner/simulate-prabhu-interview', { method: 'POST', body: JSON.stringify({ trip }) }),
   callPrabhu: (trip: Trip) => request<{ trip: Trip }>('/api/planner/call-prabhu', { method: 'POST', body: JSON.stringify({ trip }) }),
+  // Partner voice UI uses Maya as its demonstration traveler. Keep both
+  // names wired to the same server workflow during the transition.
+  simulateMayaInterview: (trip: Trip) => request<{ trip: Trip; summary: string }>('/api/planner/simulate-prabhu-interview', { method: 'POST', body: JSON.stringify({ trip }) }),
+  callMaya: (trip: Trip) => request<{ trip: Trip }>('/api/planner/call-prabhu', { method: 'POST', body: JSON.stringify({ trip }) }),
   selectFlight: (id: string, trip?: Trip) => request<{ trip: Trip }>('/api/bookings/flight', { method: 'POST', body: JSON.stringify({ id, trip }) }),
   selectHotel: (id: string, trip?: Trip) => request<{ trip: Trip }>('/api/bookings/hotel', { method: 'POST', body: JSON.stringify({ id, trip }) }),
   searchSabreLive: (input: { origin: string; destination: string; departureDate: string; returnDate: string; adults: number }) => request<{ source: 'sabre-cert-mcp'; results: { flights: unknown; hotels: unknown } }>('/api/sabre/live-search', { method: 'POST', body: JSON.stringify(input) }),

@@ -114,22 +114,29 @@ export class VocalBridgeService {
   }
 
   async collectPreferences(input: { adminName: string; adminPhone: string; phones: Record<string, string>; travelers: Traveler[]; destination: string }): Promise<PreferenceCollection> {
-    const participants = input.travelers.filter((traveler) => traveler.name !== input.adminName);
+    // The first traveler is always the trip admin. Names are editable and are
+    // not a reliable way to decide who should receive a preference call.
+    const participants = input.travelers.slice(1);
+    if (!participants.length) throw new Error('Add at least one friend before starting preference calls.');
     if (!config.mockMode && config.vocalBridge.apiKey && config.vocalBridge.agentId) {
-      const calls = await Promise.all(participants.map(async (traveler) => {
+      const calls: PreferenceCollection['calls'] = [];
+      // Start one outbound interview only after the previous call request has
+      // returned. This prevents every friend being dialed at once and keeps
+      // the preference collector in a clear, admin-controlled sequence.
+      for (const traveler of participants) {
         const phone = input.phones[traveler.id]?.trim();
         if (!phone) throw new Error(`${traveler.name} needs a phone number before a call can be placed.`);
         try {
           // `vb call` is Vocal Bridge's supported outbound-call interface. The
           // selected agent and outbound calling must be configured in its CLI/dashboard.
           await run('vb', ['call', phone, '--name', traveler.name, '--json'], { timeout: 30_000 });
-          return { travelerId: traveler.id, name: traveler.name, phone, status: 'queued' as const, summary: 'Outbound preference call queued. JourneyOS will use the completed call transcript for the group proposal.', happiness: 0, topPriorities: [], compromise: 'Waiting for the traveler’s call.' };
+          calls.push({ travelerId: traveler.id, name: traveler.name, phone, status: 'queued', summary: 'Outbound preference call queued. JourneyOS will use the completed call transcript for the group proposal.', happiness: 0, topPriorities: [], compromise: 'Waiting for the traveler’s call.' });
         } catch (error) {
           const detail = error instanceof Error ? error.message : 'Unknown outbound call error';
           if (/ENOENT/.test(detail)) throw new Error('Vocal Bridge CLI is not installed on this computer. Install it with: pip install vocal-bridge, then run vb auth login and vb agent use.');
           throw new Error(`Could not start ${traveler.name}'s Vocal Bridge call: ${detail}`);
         }
-      }));
+      }
       return {
         adminName: input.adminName,
         adminWeight: 1.5,

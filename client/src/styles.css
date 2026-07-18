@@ -5,15 +5,45 @@
 
 /* The Plan page has one primary entry point: the Travel Mediator voice dock.
    The detailed group flow lives directly below it in GroupPlanningPanel. */
-.planner-workflow > section:nth-of-type(4),
-.planner-workflow > section:nth-of-type(5) {
+/* Keep the Friends card in the Plan flow, but hide the older duplicate
+   group-call and admin-review cards below it. */
+.planner-workflow > section:nth-of-type(5),
+.planner-workflow > section:nth-of-type(6) {
   display: none;
 }
 
-/* Group calls and negotiation now live in the dedicated, editable planning
-   workflow directly below the voice brief. Hide the legacy embedded panels. */
-.planner-workflow > section:nth-child(n + 4) {
+/* The Friends eyebrow already names this compact roster card; a computed
+   group-size headline adds no useful information. */
+.friend-setup h2 {
   display: none;
+}
+
+.friend-setup .eyebrow {
+  color: #17211d;
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  text-transform: none;
+}
+
+/* Phone fields are mandatory and use E.164 format. */
+.friend-setup label span {
+  display: none;
+}
+.friend-setup label:has(input[placeholder="+14156290471"])::after {
+  content: "* Required";
+  color: #245c4f;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+.friend-setup label:has(input:invalid)::after {
+  content: "Use +14156290471";
+  color: #dc4c3f;
+}
+.friend-setup input:invalid {
+  border-color: #dc4c3f;
+  box-shadow: 0 0 0 2px rgba(220, 76, 63, 0.12);
 }
 
 /* Variable expenses and settlement now have their own top-level workspace. */
@@ -40,6 +70,4 @@ section[class*="rounded-[24px]"][class*="border-stone-200"][class*="p-5"] {
   .soft-stat > span { @apply block text-[10px] font-bold uppercase tracking-[0.1em] text-stone-400; }
   .soft-stat > strong { @apply mt-1 block text-sm font-bold text-ink; }
   .paper-grid { background-image: linear-gradient(rgba(36,91,79,.055) 1px, transparent 1px), linear-gradient(90deg, rgba(36,91,79,.055) 1px, transparent 1px); background-size: 22px 22px; }
-  /* The detailed Decision Studio is the single admin approval surface. */
-  .planner-workflow > section:last-child { display: none; }
 }
