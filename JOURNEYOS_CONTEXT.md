@@ -258,7 +258,25 @@ Important context:
 - Keep the dynamic travel-brief fixes.
 - Keep the agent network concept, but do not expose a redundant standalone agent screen.
 - Voice should feel continuous across pages while maintaining confirmed context.
-- On Live Trip, `itinerary_command` applies start, complete, restore, skip, cancel, or delay requests only to the active day; `show_day`, `navigate`, and `replan_trip` preserve the same voice session and confirmed trip context.
+- The checked-in Vocal Bridge prompt consolidates the proven Travel Mediator rules with the partner's page-aware Concierge and AI Travel Negotiator flow. It supports four explicit modes: admin planning, short friend preference calls, friend negotiation calls, and page assistance. It preserves strict city/date/brief validation, partial-brief recovery, silent HTTP callback saving, graceful hang-up behavior, authoritative `journeyos_context`, and `show_day` requests such as “show Day 3.”
+- Negotiation demo sequence: the admin's live brief and Sarah's seeded profile are preloaded, then the Negotiator calls Friend 2 (when a third traveler exists). It detects a conflict only from Friend 2's spoken priority, proposes a specific trade, requires explicit acceptance, and leaves the itinerary unchanged until the admin applies the agreement.
+- Trip Dashboard now makes the collection state explicit: the admin and Sarah show `Brief captured` from the outset, while Friend 2 remains `Awaiting Friend 2 call` (or in-progress) until the live negotiation callback supplies their actual call result.
+- Sarah's Planning card also has an unconditional seeded profile fallback for older locally persisted trips: early dinner, moderate walking, pescetarian food, and the corresponding early-dinner/easy-transit compromise.
+- The Group Vibe view (`Does this plan feel good for everyone?`) follows the same state model: Admin and Sarah are marked `Brief captured`; Sarah visibly displays early dinner, moderate walking, pescetarian food, and keeps late dinner light. Friend 2 alone remains pending until their call result is received.
+- Sarah's preferences are now defined as one canonical client profile and normalized server-side on hydration, preventing old locally persisted values from producing inconsistent Sarah cards across Planning, Dashboard, Group Vibe, and Negotiation context.
+- Sabre CERT search confirmation is now an in-app panel in Booking rather than a browser `window.confirm` dialog. It names the exact route, confirms that CERT inventory is reference-only, and provides explicit Search / Not now actions.
+- After the admin’s sandbox advance is captured, Booking now offers `Prepare payment requests`: it creates each non-admin friend’s separate PayPal sandbox link and message preview, then enables `Copy payment messages`. No SMS, email, or payment request is automatically sent. The verbose Supplier fulfillment panel was replaced by one concise sandbox/supplier-booking note.
+- The same batch action is also placed immediately below `Reset to equal shares` in Step 2 as `Collect payment from friends`, making the next admin action visible alongside the individual split amounts.
+- Equal-split rounding now assigns the tiny remainder to the final traveler (for example 33.33%, 33.33%, 33.34%), and the UI accepts a legacy 99.99% one-cent rounding total so `Collect payment from friends` is not incorrectly disabled.
+- A successful Sabre CERT search now derives up to three live reference bundles directly from returned flight and hotel rates: lowest live total, best live schedule, and a flexible alternative. These are intentionally review-only until the app preserves and revalidates the opaque Sabre offer/rate keys for supplier booking.
+- The local spoken-brief extractor now prioritizes generic “from [origin] to [destination]” phrasing before defaults or the short recognized-destination list. This prevents a valid new route such as San Francisco → Hawaii from falling back to the original San Francisco → Tokyo trip, and lets Booking regenerate its flight/hotel demo inventory for the extracted destination.
+- Booking resolves extracted city names to IATA airport codes on the server for the supported global and Indian city set (for example San Francisco → SFO, Hawaii/Honolulu → HNL, Chennai → MAA). If a city is not in the resolver, live Sabre search remains deliberately blocked until the admin enters an explicit three-letter airport code rather than guessing.
+- The parser also recognizes direct city-pair shorthand without “from,” for example `Dallas to San Diego`, which maps to DFW → SAN and refreshes booking inventory.
+- The parser additionally supports the polished brief form `for [N] travelers to [destination], departing from [origin] between [dates]`, so a submitted brief for Dallas → San Diego no longer falls back to the original San Francisco → Tokyo defaults.
+- Sabre CERT flight cards now use a tolerant nested-offer parser for marketing, operating, validating, and direct carrier fields, including JSON responses with whitespace and nested carrier objects. Known IATA carrier codes render as airline names and include the flight number when supplied; absent carrier data is labeled `Sabre CERT airline` rather than the misleading `Carrier not exposed` placeholder.
+- The flight parser now scans every MCP content block (not just the first) for structured offers and recognizes direct/nested carrier-name fields plus two- or three-character carrier codes. It labels genuinely absent carrier data `Carrier name unavailable` instead of fabricating an airline.
+- On July 18, 2026, the user confirmed that the consolidated prompt and updated client-action definitions were applied manually to the Vocal Bridge agent dashboard.
+- On Live Trip, `itinerary_command` applies start, complete, undo, restore, skip, cancel, remove, or delay requests only to the active day; `show_day`, `navigate`, and `replan_trip` preserve the same voice session and confirmed trip context.
 - The Plan screen contains the voice brief and the single AI Travel Negotiator flow: known group context, one consented friend call, live/scripted transcript, admin preview, and Decision Studio. The older redundant Friends & preference calls block is intentionally removed.
 - Decision Studio always shows Admin priority adjustment and Projected plan. Friend-call result cards appear when results exist; applying the adjusted plan remains disabled until friend input has been collected.
 - Live itinerary and dashboard timelines show Mark as done for experience/food stops and Undo done after completion; completion is persisted through the existing itinerary progress API.
@@ -266,12 +284,14 @@ Important context:
 - Negotiation outbound calls automatically switch to the labeled scripted flow when Vocal Bridge credentials, CLI execution, or outbound quota are unavailable; disruption controls remain connected to the active-day replan API.
 - Live itinerary layout order is: journey map and timeline, Live activity progress, disruption controls, then the Why this order works before/optimised comparison at the bottom.
 - Booking and payment should remain minimal and voice-driven.
+- New trips start with two populated defaults: admin Prabhu Siddharth (`+14156290471`) and friend Sarah (`+14152220000`). Sarah is the visible example profile: early dinner, moderate walking, and pescetarian food. A four-traveler request therefore creates the two defaults plus editable Friend 2 and Friend 3 slots.
 - Live Trip should show real preference-aware daily stops and mapped directions.
 - Day 1 is selected whenever a newly accepted trip brief creates an itinerary.
 - Avoid redundant cards and repeated trip information.
 - Branding near the voice control should say “Powered by Vocal Bridge.”
 - The partner Dashboard and package-style Booking screen are preserved. The sidebar order and labels are: Trip dashboard, Plan together, Live itinerary, Book & split, Shared expenses, and Travel memory.
 - The Dashboard uses the partner’s full Group Vibe panel: overall mood and group fit, fairness gap, per-traveler would-love/keep-light priorities, call status or plan-fit explanation, and the current fair-trade summary. It remains driven by live traveler and preference-call state.
+- Trip Dashboard and Live Itinerary have deliberately different jobs. Dashboard is the trip-level readiness and group-health view: next decision, readiness checklist, progress, budget, weather, Group Vibe, and a compact current/next stop preview. Full maps, day selectors, timelines, completion controls, disruptions, and route intelligence live only on Live Itinerary. Receipt capture lives only in Shared Expenses.
 - Package cards use the spoken destination name when the demo store does not know an IATA code; they never display a fabricated `DST` airport code. Sabre CERT search still requires a real three-letter code or a supported city-to-airport resolution.
 
 ## Current validation status
@@ -314,9 +334,31 @@ Verify that:
 
 The repository previously integrated a partner PR containing Google Maps, disruption-demo, Decision Studio, and related planner UI work. Subsequent work preserved and adapted Sabre, Vocal Bridge, one-way/date boundaries, agent coordination, booking/checkout, microphone fixes, and dynamic trip-brief behavior.
 
+On July 18, 2026, branch `origin/codex/journeyos-demo-ready` was merged into `agent/live-trip-planning` as commit `f359c72`. Local Vocal Bridge prompt, client-action, and project-context updates were reapplied afterward. The local Dashboard was then restored deliberately: it is a readiness/next-decision view with a compact current/next stop preview, while the partner Live Itinerary workflow remains intact. The pre-merge stash remains as a recovery copy until the user confirms it can be dropped.
+
+The Vocal Bridge prompt also carries the partner's explicit booking, payment, Sabre IATA confirmation, traveler-addition, and shared-expense action rules. It retains the stricter existing trip-brief validation, friend-call saving, negotiation callback, and graceful end-call behavior.
+
 Before publishing additional work:
 
 1. Review `git status` and `git diff`.
 2. Preserve unrelated partner changes.
 3. Run `npm run build` and `npm test`.
 4. Resolve PR conflicts without dropping either the partner UI or the JourneyOS integration fixes.
+
+## Sabre MCP carrier resolution
+
+The skills-based Sabre MCP response stores airline identity in a separate `flights` array. A priced offer links to a `journeys` record through `journeyRefs`, and that journey links to the actual flight through `flightRefs`. The Booking UI resolves the first requested journey's `marketingAirlineCode` / `marketingFlightNumber` (with operating and validating-carrier fallbacks) before displaying a live CERT offer. This prevents the generic “Sabre CERT airline” label when the MCP payload contains an actual carrier such as Japan Airlines (`JL`), United (`UA`), or Air Canada (`AC`).
+
+## Required Sabre confirmation checkpoint
+
+The Plan page now has an explicit **Confirm trip & load live Sabre options** action after a brief is created. It opens Booking & Checkout and triggers the required CERT search for the confirmed route, dates, and traveler count. The Booking page presents three live flight-and-stay combinations from that response; the admin must select one before the payment step can open. **Refresh live Sabre options** repeats the CERT check. Curated demo bundles are shown only as a fallback when the live CERT check fails.
+
+The live CERT options use the same full bundle-card treatment as the prior recommended-package UI: each card shows its label, rationale, flight identity/details, hotel identity/details, group total, revalidation note, and selected state. No carrier or hotel value is fabricated; every displayed item comes from the current Sabre response.
+
+Booking now starts the required Sabre CERT request automatically on page entry, including direct navigation to Booking & Checkout. The section is labelled **Sabre live inventory** and its manual refresh control is **Refresh Sabre bundle price**.
+
+When a returned American Airlines CERT offer is genuinely lower than the comparable curated AA demo-flight component, Booking retains a prominent sticky in-section alert with the calculated group saving. The alert clears when the route/dates/group changes or a fresh search begins; it is never shown for a fabricated saving.
+
+## Brand asset
+
+`client/public/odyssey-logo.png` is the generated Odyssey.AI compass/O mark with a transparent background. It replaces the sidebar’s textual `O` and is configured as the browser favicon in `client/index.html`.

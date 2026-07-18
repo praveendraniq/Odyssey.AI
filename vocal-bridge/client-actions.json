@@ -1,17 +1,47 @@
 [
   {
     "name": "show_agent_network",
-    "description": "Open the JourneyOS Agent Network so the traveler can inspect delegation and handoff traces.",
+    "description": "Open the Odyssey.AI Agent Network so the traveler can inspect delegation and handoff traces.",
     "direction": "agent_to_app"
   },
   {
     "name": "show_booking_options",
-    "description": "Open JourneyOS Booking and Checkout so the traveler can review flights, hotels, and payment details.",
+    "description": "Open Odyssey.AI Booking and Checkout so the traveler can review flights, hotels, and payment details.",
+    "direction": "agent_to_app"
+  },
+  {
+    "name": "select_bundle",
+    "description": "Select a booking bundle the traveler explicitly names. Payload id: value, overall, or neighborhood.",
+    "direction": "agent_to_app"
+  },
+  {
+    "name": "confirm_booking",
+    "description": "Open the admin payment step only after the traveler explicitly confirms the selected bundle.",
+    "direction": "agent_to_app"
+  },
+  {
+    "name": "collect_payment",
+    "description": "Create the admin PayPal checkout only after the traveler explicitly asks to pay. The UI remains responsible for approval and capture.",
+    "direction": "agent_to_app"
+  },
+  {
+    "name": "search_live_sabre",
+    "description": "After the traveler explicitly confirms origin and destination airport codes, search fresh Sabre CERT inventory. Payload: origin and destination, each a three-letter IATA code.",
+    "direction": "agent_to_app"
+  },
+  {
+    "name": "add_expense",
+    "description": "Fill and add a shared expense. Payload: description, amount, paidBy, and optional participants. Ask for missing values before emitting.",
+    "direction": "agent_to_app"
+  },
+  {
+    "name": "add_traveler",
+    "description": "Add a friend after repeating the name and optional E.164 phone number and receiving explicit confirmation. Payload: name and optional phone.",
     "direction": "agent_to_app"
   },
   {
     "name": "trip_brief_ready",
-    "description": "Save the complete admin brief. Send conversation, origin, destination, departureDate, returnDate, travelers, budget, interests, foodPreferences, and travelStyle.",
+    "description": "Place the finalized spoken trip request into the editable brief. Send one payload field named conversation containing a complete polished paragraph.",
     "direction": "agent_to_app"
   },
   {
@@ -21,12 +51,12 @@
   },
   {
     "name": "itinerary_command",
-    "description": "Change only the active Live Trip day. Send the traveler’s exact start, complete, restore, skip, cancel, or delay request in query.",
+    "description": "Apply the traveler’s exact change to the selected itinerary day. Send their verbatim request in query; supports complete, undo, start, skip, cancel, remove, restore, and delay.",
     "direction": "agent_to_app"
   },
   {
     "name": "replan_trip",
-    "description": "Replan the active day for late, rain, flight-delay, closed, or tired. Send the value in type.",
+    "description": "Re-optimize the active itinerary day for a broad disruption. Send tired, late, rain, closed, or flight-delay in type.",
     "direction": "agent_to_app"
   },
   {
@@ -36,23 +66,23 @@
   },
   {
     "name": "navigate",
-    "description": "Open a JourneyOS page. Send page as home, planner, checkout, live, expenses, or dna.",
+    "description": "Open an Odyssey.AI page. Send page as home, planner, checkout, live, expenses, or dna.",
     "direction": "agent_to_app"
   },
   {
     "name": "show_day",
-    "description": "Open a numbered itinerary day on Live Trip. Send the integer in day.",
+    "description": "Open a specific itinerary day on Live Trip. Send the requested positive integer in day.",
     "direction": "agent_to_app"
   },
   {
     "name": "trip_plan_created",
-    "description": "Notify the voice agent that JourneyOS structured and saved the trip brief.",
+    "description": "Notify the voice agent that Odyssey.AI structured and saved the trip brief.",
     "direction": "app_to_agent",
     "behavior": "notify"
   },
   {
     "name": "journeyos_context",
-    "description": "Supplies current page, confirmed trip, selected booking, friends, and active itinerary day. Treat it as authoritative and do not restart planning.",
+    "description": "Supplies the current page, destination, dates, travelers, selected booking, friends, and active itinerary day. Treat these facts as authoritative and do not restart planning.",
     "direction": "app_to_agent",
     "behavior": "notify"
   }

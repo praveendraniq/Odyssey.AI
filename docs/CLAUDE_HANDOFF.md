@@ -1,8 +1,8 @@
-# JourneyOS — implementation handoff
+# Odyssey.AI — implementation handoff
 
 ## Product in one sentence
 
-JourneyOS is an AI group-travel operating system that turns a natural-language trip request into a shared itinerary, privately calls travelers to collect and mediate preferences, adapts the trip during travel, and keeps booking payments separate from final shared-expense settlement.
+Odyssey.AI is an AI group-travel operating system that turns a natural-language trip request into a shared itinerary, privately calls travelers to collect and mediate preferences, adapts the trip during travel, and keeps booking payments separate from final shared-expense settlement.
 
 ## Current branch and state
 

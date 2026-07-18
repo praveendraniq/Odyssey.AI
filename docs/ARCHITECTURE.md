@@ -1,6 +1,6 @@
-# JourneyOS architecture
+# Odyssey.AI architecture
 
-JourneyOS uses one active `Trip` object across the client and API. The browser persists it under `journeyos-active-trip`; startup hydrates the API store, which migrates older objects to schema version 2 without changing their destination. Mutations accept the current trip before applying an operation, preventing stale server state after restart.
+Odyssey.AI uses one active `Trip` object across the client and API. The browser persists it under `journeyos-active-trip`; startup hydrates the API store, which migrates older objects to schema version 2 without changing their destination. Mutations accept the current trip before applying an operation, preventing stale server state after restart.
 
 The trip contains the roster, aggregate preferences and approval, inventory selections, itinerary, budget, Travel DNA, event feed, and progress state. Traveler changes recalculate aggregate interest scores, passenger-dependent flight cost, and invalidate a prior preference approval.
 

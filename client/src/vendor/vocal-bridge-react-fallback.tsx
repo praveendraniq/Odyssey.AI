@@ -20,7 +20,28 @@ interface VoiceContextValue {
 }
 
 const VoiceContext = createContext<VoiceContextValue | null>(null);
-const sampleCommand = 'Plan a 5-day Japan trip for four people under $6,000 with temples, food, history, and photography.';
+const actionBus = new EventTarget();
+const emitAction = (action: string, payload: Record<string, unknown> = {}) => actionBus.dispatchEvent(new CustomEvent(action, { detail: payload }));
+
+const interpretCommand = (query: string): { action: string; payload?: Record<string, unknown>; response: string } => {
+  const value = query.toLowerCase();
+  if (/\b(?:open|show|go to|take me to)\b.*\b(?:live|itinerary|trip plan)\b/.test(value)) return { action: 'navigate', payload: { page: 'live' }, response: 'Opening the live itinerary.' };
+  if (/\b(?:open|show|go to|take me to)\b.*\b(?:book|booking|payment|split)\b/.test(value)) return { action: 'navigate', payload: { page: 'checkout' }, response: 'Opening Book & split.' };
+  if (/\b(?:open|show|go to|take me to)\b.*\b(?:expense|receipt|settlement)\b/.test(value)) return { action: 'navigate', payload: { page: 'expenses' }, response: 'Opening Shared expenses.' };
+  if (/\b(?:open|show|go to|take me to)\b.*\b(?:travel memory|travel dna)\b/.test(value)) return { action: 'navigate', payload: { page: 'dna' }, response: 'Opening Travel memory.' };
+  if (/\b(?:open|show|go to|take me to)\b.*\b(?:plan together|planner|preferences)\b/.test(value)) return { action: 'navigate', payload: { page: 'planner' }, response: 'Opening Plan together.' };
+  if (/\b(?:option|bundle)\s*a\b|\bbest value\b/.test(value)) return { action: 'select_bundle', payload: { id: 'value' }, response: 'Selecting bundle A, Best value.' };
+  if (/\b(?:option|bundle)\s*b\b|\bbest overall\b|\bamerican airlines\b/.test(value)) return { action: 'select_bundle', payload: { id: 'overall' }, response: 'Selecting bundle B, Best overall with American Airlines.' };
+  if (/\b(?:option|bundle)\s*c\b|\bneighbou?rhood hop\b|\bmulti(?:-| )stay\b/.test(value)) return { action: 'select_bundle', payload: { id: 'neighborhood' }, response: 'Selecting bundle C, Neighborhood hop.' };
+  if (/\bconfirm\b.*\b(?:booking|bundle|trip)\b/.test(value)) return { action: 'confirm_booking', response: 'Confirming the selected bundle and opening the payment split.' };
+  if (/\b(?:collect|create|start)\b.*\b(?:paypal|payment)\b/.test(value)) return { action: 'collect_payment', response: 'Creating the PayPal sandbox payment split.' };
+  const day = value.match(/\b(?:show|open|go to)?\s*day\s+(\d{1,2})\b/)?.[1];
+  if (day) return { action: 'show_day', payload: { day: Number(day) }, response: `Showing day ${day}.` };
+  if (/\b(complete|completed|done|finished|saw|visited|undo|restore|reopen|start|begin|arrived|cancel|skip|remove|drop|late|delay|delayed|behind|stuck)\b/.test(value)) return { action: 'itinerary_command', payload: { query }, response: 'Applying that change to the selected itinerary day.' };
+  if (/\b(tired|exhausted|need a break|slow down)\b/.test(value)) return { action: 'replan_trip', payload: { type: 'tired' }, response: 'Reducing the active day while protecting its most important stop.' };
+  if (/\b(?:delay|disruption|replan)\b/.test(value)) return { action: 'confirm_change', response: 'Applying the demo disruption and replanning the itinerary.' };
+  return { action: 'trip_brief_ready', payload: { conversation: query }, response: 'Updating the trip from your spoken brief.' };
+};
 
 export function VocalBridgeProvider({ children }: { children: ReactNode; options?: Record<string, unknown> }) {
   const [state, setState] = useState<ConnectionState>('disconnected');
@@ -32,12 +53,13 @@ export function VocalBridgeProvider({ children }: { children: ReactNode; options
   const aiHandlerRef = useRef<((query: string) => Promise<string>) | null>(null);
 
   const sendToAgent = useCallback(async (query: string) => {
-    if (!aiHandlerRef.current) return;
     try {
-      const response = await aiHandlerRef.current(query);
+      const response = aiHandlerRef.current
+        ? await aiHandlerRef.current(query)
+        : (() => { const command = interpretCommand(query); emitAction(command.action, command.payload); return command.response; })();
       setTranscript((entries) => [...entries, { role: 'agent', text: response, timestamp: Date.now() }]);
     } catch (cause) {
-      setError({ code: 'DATA_CHANNEL_ERROR', message: cause instanceof Error ? cause.message : 'The JourneyOS agent did not respond.' });
+      setError({ code: 'DATA_CHANNEL_ERROR', message: cause instanceof Error ? cause.message : 'The Odyssey.AI agent did not respond.' });
     }
   }, []);
 
@@ -55,14 +77,9 @@ export function VocalBridgeProvider({ children }: { children: ReactNode; options
     setState('connecting');
     const Recognition = window.SpeechRecognition ?? window.webkitSpeechRecognition;
     if (!Recognition) {
-      setState('connected');
-      setMicState(true);
-      mockTimeoutRef.current = setTimeout(() => {
-        setTranscript((entries) => [...entries, { role: 'user', text: sampleCommand, timestamp: Date.now() }]);
-        void sendToAgent(sampleCommand);
-        setMicState(false);
-        setState('disconnected');
-      }, 900);
+      setError({ code: 'MICROPHONE_UNAVAILABLE', message: 'This browser does not provide speech capture. Use Chrome or Edge, or type the same command in Plan together.' });
+      setState('disconnected');
+      setMicState(false);
       return;
     }
 
@@ -98,7 +115,7 @@ export function VocalBridgeProvider({ children }: { children: ReactNode; options
   const toggleMicrophone = useCallback(() => setMicrophoneEnabled(!isMicrophoneEnabled), [isMicrophoneEnabled, setMicrophoneEnabled]);
   const clear = useCallback(() => setTranscript([]), []);
   const setAiHandler = useCallback((handler: ((query: string) => Promise<string>) | null) => { aiHandlerRef.current = handler; }, []);
-  const sendAction = useCallback(async () => undefined, []);
+  const sendAction = useCallback(async (action: string, payload: Record<string, unknown> = {}) => { emitAction(action, payload); }, []);
 
   useEffect(() => () => { void disconnect(); }, [disconnect]);
   const value = useMemo<VoiceContextValue>(() => ({ state, connect, disconnect, isMicrophoneEnabled, toggleMicrophone, setMicrophoneEnabled, sendAction, agentMode: 'mock-fallback', error, transcript, clear, setAiHandler }), [clear, connect, disconnect, error, isMicrophoneEnabled, sendAction, setAiHandler, setMicrophoneEnabled, state, toggleMicrophone, transcript]);
@@ -129,6 +146,10 @@ export function useAIAgent({ onQuery }: { onQuery: (query: string) => Promise<st
 
 export function useAgentActions() {
   const { sendAction } = useVoiceContext();
-  const onAction = useCallback(() => () => undefined, []);
+  const onAction = useCallback((action: string, handler: (payload: Record<string, unknown>) => void) => {
+    const listener = (event: Event) => handler((event as CustomEvent<Record<string, unknown>>).detail ?? {});
+    actionBus.addEventListener(action, listener);
+    return () => actionBus.removeEventListener(action, listener);
+  }, []);
   return { lastAction: null, sendAction, onAction };
 }
