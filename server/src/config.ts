@@ -15,6 +15,9 @@ export const config = {
     v2Pcc: process.env.SABRE_V2_PCC ?? 'S5OM',
     v2Domain: process.env.SABRE_V2_DOMAIN ?? 'EXT',
     baseUrl: process.env.SABRE_BASE_URL ?? 'https://api.cert.platform.sabre.com',
+    accessToken: process.env.SABRE_ACCESS_TOKEN,
+    mcpUrl: process.env.SABRE_MCP_URL ?? 'https://mcp2.cert.sabre.com/mcp',
+    pcc: process.env.SABRE_PCC ?? 'S5OM',
   },
   paypal: {
     clientId: process.env.PAYPAL_CLIENT_ID,
@@ -23,8 +26,11 @@ export const config = {
   },
   vocalBridge: {
     apiKey: process.env.VOCAL_BRIDGE_API_KEY,
+    mayaApiKey: process.env.VOCAL_BRIDGE_MAYA_API_KEY,
     baseUrl: process.env.VOCAL_BRIDGE_API_URL ?? process.env.VOCAL_BRIDGE_BASE_URL,
     agentId: process.env.VOCAL_BRIDGE_AGENT_ID,
+    mayaAgentId: process.env.VOCAL_BRIDGE_MAYA_AGENT_ID ?? '8461e8c8-6b94-42c7-bc4b-dbe48d25e700',
+    mayaPhone: process.env.VOCAL_BRIDGE_MAYA_PHONE ?? '+12403781801',
     outboundContextSecret: process.env.VOCAL_BRIDGE_CONTEXT_SECRET,
   },
   landingAi: {

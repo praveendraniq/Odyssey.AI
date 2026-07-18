@@ -67,8 +67,11 @@ const fallbackFor = (destination: string, diagnostic: string): WeatherObservatio
 export class WeatherService {
   async current(destination: string): Promise<WeatherObservation> {
     try {
+      const knownDestination = ['tokyo', 'kyoto', 'paris', 'london', 'rome', 'bangkok', 'bali', 'singapore', 'mexico city']
+        .find((place) => destination.toLowerCase().includes(place));
+      const weatherDestination = knownDestination ?? destination;
       const geocodeUrl = new URL('https://geocoding-api.open-meteo.com/v1/search');
-      geocodeUrl.searchParams.set('name', destination);
+      geocodeUrl.searchParams.set('name', weatherDestination);
       geocodeUrl.searchParams.set('count', '1');
       geocodeUrl.searchParams.set('language', 'en');
       geocodeUrl.searchParams.set('format', 'json');

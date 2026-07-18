@@ -17,6 +17,20 @@ const route = (id: string, day: number, time: string, title: string, subtitle: s
   id, day, time, title, subtitle, category, durationMins, travelMins, location: { x, y }, status, weatherSensitive, openingHours: '09:00 – 17:00',
 });
 
+const MAX_ITINERARY_DAYS = 14;
+const normalizedTripDates = (departureInput: string | undefined, returnInput: string | undefined, fallbackDuration: number) => {
+  const departureDate = departureInput ?? '2026-10-12';
+  const departure = new Date(`${departureDate}T12:00:00Z`);
+  const candidateReturn = returnInput ? new Date(`${returnInput}T12:00:00Z`) : undefined;
+  const daysFromDates = candidateReturn && Number.isFinite(departure.getTime()) && Number.isFinite(candidateReturn.getTime())
+    ? Math.round((candidateReturn.getTime() - departure.getTime()) / 86_400_000) + 1
+    : fallbackDuration;
+  const duration = Math.min(MAX_ITINERARY_DAYS, Math.max(1, Math.round(daysFromDates) || 1));
+  const returnDate = new Date(`${departureDate}T12:00:00Z`);
+  returnDate.setUTCDate(returnDate.getUTCDate() + duration - 1);
+  return { departureDate, returnDate: returnDate.toISOString().slice(0, 10), duration };
+};
+
 const itinerary: ItineraryItem[] = [
   route('i-hotel', 1, '14:00', 'Check in · Hotel K5', 'Nihonbashi · Tokyo', 'stay', 20, 45, 82, 45, 'completed'),
   route('i-sensoji', 1, '16:00', 'Sensō-ji & Nakamise', 'Asakusa · Tokyo', 'culture', 75, 28, 56, 29, 'completed', true),
@@ -115,25 +129,27 @@ const itineraryFor = (destination: string, duration: number): ItineraryItem[] =>
   ].filter((item) => item.day <= duration);
 };
 
-const itineraryFromPlaces = (duration: number, places: PlaceAttraction[]): ItineraryItem[] => {
-  const slots = ['09:00', '12:30', '16:00'];
-  return places.slice(0, duration * slots.length).map((place, index) => {
-    const category = place.category;
-    return route(
-      `place-${place.id}`,
-      Math.floor(index / slots.length) + 1,
-      slots[index % slots.length],
-      place.name,
-      place.address,
-      category,
-      28 + ((index * 17) % 48),
-      30 + ((index * 11) % 45),
-      category === 'food' ? 75 : 95,
-      20 + ((index * 13) % 35),
-      index === 0 ? 'current' : 'upcoming',
-      category !== 'food',
-    );
-  });
+const itineraryFromPlaces = (destination: string, duration: number, places: PlaceAttraction[], hotel: { name: string; location: string }): ItineraryItem[] => {
+  const perDay = Math.max(1, Math.ceil(places.length / duration));
+  return Array.from({ length: duration }, (_, dayIndex) => {
+    const day = dayIndex + 1;
+    const candidates = places.slice(dayIndex * perDay, (dayIndex + 1) * perDay);
+    const food = candidates.filter((place) => place.category === 'food');
+    const experiences = candidates.filter((place) => place.category !== 'food');
+    const morning = experiences[0] ?? candidates[0];
+    const afternoon = experiences[1];
+    const lunch = food[0];
+    const dinner = food[1];
+    const items: ItineraryItem[] = [];
+    if (day === 1) items.push(route(`hotel-start-${day}`, day, '14:30', `Check in · ${hotel.name}`, hotel.location, 'stay', 30, 0, 50, 50, 'current'));
+    else items.push(route(`hotel-start-${day}`, day, '08:00', `Breakfast · ${hotel.name}`, hotel.location, 'food', 50, 0, 50, 50, 'upcoming'));
+    if (morning) items.push(route(`place-${morning.id}`, day, day === 1 ? '16:00' : '09:30', morning.name, morning.address, morning.category, 95, 25, 35, 45, 'upcoming', morning.category !== 'food'));
+    if (day > 1) items.push(lunch ? route(`place-${lunch.id}`, day, '12:30', `Lunch · ${lunch.name}`, lunch.address, 'food', 75, 18, 55, 58, 'upcoming') : route(`lunch-${day}`, day, '12:30', 'Lunch near today’s route', `${destination} city center`, 'food', 70, 18, 55, 58, 'upcoming'));
+    if (afternoon) items.push(route(`place-${afternoon.id}`, day, '15:30', afternoon.name, afternoon.address, afternoon.category, 95, 22, 68, 48, 'upcoming', afternoon.category !== 'food'));
+    items.push(dinner ? route(`place-${dinner.id}`, day, '19:00', `Dinner · ${dinner.name}`, dinner.address, 'food', 90, 25, 72, 58, 'upcoming') : route(`dinner-${day}`, day, '19:00', `Dinner near ${hotel.name}`, hotel.location, 'food', 90, 25, 72, 58, 'upcoming'));
+    items.push(route(`hotel-return-${day}`, day, '21:00', `Return to · ${hotel.name}`, hotel.location, 'stay', 10, 20, 50, 50, 'upcoming'));
+    return items;
+  }).flat();
 };
 
 const groupPreference: GroupPreference = {
@@ -181,6 +197,8 @@ export class DemoStore {
     migrated.request.origin ??= 'San Francisco';
     migrated.request.departureDate ??= '2026-10-12';
     migrated.request.returnDate ??= '2026-10-16';
+    const normalizedDates = normalizedTripDates(migrated.request.departureDate, migrated.request.returnDate, migrated.request.duration);
+    migrated.request = { ...migrated.request, ...normalizedDates };
     migrated.travelDna.confidence ??= 50;
     migrated.travelDna.changes ??= [];
     migrated.expenses ??= [];
@@ -234,7 +252,9 @@ export class DemoStore {
     const returning = new Date(`${input.returnDate}T12:00:00Z`);
     if (!Number.isFinite(departure.getTime()) || !Number.isFinite(returning.getTime()) || returning <= departure) throw new Error('Return date must be after the departure date.');
     const destinationChanged = input.destination.trim().toLowerCase() !== this.trip.request.destination.toLowerCase();
-    const duration = Math.round((returning.getTime() - departure.getTime()) / 86_400_000) + 1;
+    const rawDuration = Math.round((returning.getTime() - departure.getTime()) / 86_400_000) + 1;
+    if (rawDuration > MAX_ITINERARY_DAYS) throw new Error(`For this demo, choose a trip of up to ${MAX_ITINERARY_DAYS} days.`);
+    const duration = rawDuration;
     this.trip.request = { ...this.trip.request, origin: input.origin.trim(), destination: input.destination.trim(), departureDate: input.departureDate, returnDate: input.returnDate, duration };
     this.trip.name = `${input.destination.trim()}, together`;
     this.trip.dates = `${departure.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}–${returning.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}`;
@@ -340,6 +360,44 @@ export class DemoStore {
     return this.getTrip();
   }
 
+  completeSimulatedMayaInterview(): Trip {
+    const maya = this.trip.travelers.find((traveler) => traveler.name === 'Maya') ?? this.trip.travelers[1];
+    if (!maya) throw new Error('Add a traveler before starting the preference interview.');
+    Object.assign(maya, {
+      name: 'Maya', initials: 'MY', pacePreference: 'balanced' as const, foodPreference: 'Street food',
+      interests: interests({ culture: 1, history: 1, food: 5, photography: 3, shopping: 5, nightlife: 3, nature: 2 }),
+    });
+    const shrine = this.trip.itinerary.find((item) => item.id === 'i-meiji');
+    if (shrine) Object.assign(shrine, { time: '11:00', title: 'Meiji Shrine · later start', status: 'moved' as const });
+    const teamLab = this.trip.itinerary.find((item) => item.id === 'i-teamlab');
+    if (teamLab) Object.assign(teamLab, { time: '18:00', status: 'moved' as const });
+    if (!this.trip.itinerary.some((item) => item.id === 'maya-akihabara')) this.trip.itinerary.push(route('maya-akihabara', 2, '15:30', 'Akihabara anime shopping', 'Akihabara · Tokyo · must-do for Maya', 'experience', 58, 52, 100, 18, 'moved'));
+    this.trip.itinerary.sort((left, right) => left.day - right.day || left.time.localeCompare(right.time));
+    this.afterTravelerChange('Maya’s simulated voice interview completed');
+    this.trip.preferenceCollection = {
+      adminName: this.trip.travelers[0]?.name ?? 'Trip admin', adminWeight: 1.5, source: 'mock', status: 'pending',
+      calls: [{ travelerId: maya.id, name: 'Maya', phone: 'Simulated traveler agent', status: 'completed', happiness: 81, topPriorities: ['anime shopping', 'street food', 'later mornings'], summary: 'Maya wants anime shopping in Akihabara, street food, moderate walking, and no early mornings or temple-heavy days.', compromise: 'Akihabara is protected on Day 2. The family’s highest-priority shrine begins later, and the evening experience remains intact.', happinessExplanation: 'Maya’s must-do is now protected without removing the group’s core culture highlight.', dialogue: [{ speaker: 'agent', text: 'What is the one thing you definitely want to do in Tokyo?' }, { speaker: 'traveler', text: 'Anime shopping in Akihabara.' }, { speaker: 'agent', text: 'Anything you would rather avoid?' }, { speaker: 'traveler', text: 'Too many temples and early mornings.' }, { speaker: 'agent', text: 'How much walking is comfortable?' }, { speaker: 'traveler', text: 'Moderate walking is fine.' }] }],
+      negotiation: 'Maya’s anime-shopping must-do conflicts with the culture-heavy Day 2. JourneyOS kept the family shrine, added Akihabara, and moved the first activity later.',
+      approvalSummary: 'Maya’s plan fit rises from 42% to 81%; the revised plan keeps every traveler above the demo fairness floor of 72%.',
+    };
+    Object.assign(this.trip.groupPreference, { groupHappiness: 86, averageHappiness: 86, fairnessGap: 9, fairnessPenalty: 0, explanation: 'The Day 2 compromise protects Maya’s Akihabara must-do, preserves the family shrine, and avoids an early start.' });
+    this.trip.events.unshift({ id: `maya-preferences-${Date.now()}`, type: 'tired', title: 'Maya preference interview completed', createdAt: new Date().toISOString(), explanation: 'Akihabara was added to Day 2, the shrine moved later, and group satisfaction was recalculated.' });
+    return this.getTrip();
+  }
+
+  startMayaPreferenceCall(): Trip {
+    const maya = this.trip.travelers.find((traveler) => traveler.name === 'Maya') ?? this.trip.travelers[1];
+    if (!maya) throw new Error('Add a traveler before starting the preference interview.');
+    this.trip.preferenceCollection = {
+      adminName: this.trip.travelers[0]?.name ?? 'Trip admin', adminWeight: 1.5, source: 'vocal-bridge', status: 'pending',
+      calls: [{ travelerId: maya.id, name: 'Maya', phone: 'Vocal Bridge simulated traveler agent', status: 'dialing', happiness: 42, topPriorities: [], summary: 'Calling Maya to collect activity, food, pace, and must-do preferences.', compromise: 'Awaiting Maya’s short preference interview.' }],
+      negotiation: 'JourneyOS is collecting Maya’s preferences before generating a fair group compromise.',
+      approvalSummary: 'Preference call in progress.',
+    };
+    this.trip.events.unshift({ id: `maya-call-${Date.now()}`, type: 'tired', title: 'Calling Maya’s simulated traveler agent', createdAt: new Date().toISOString(), explanation: 'JourneyOS started a short outbound Vocal Bridge call to collect only activity, food, pace, and must-do preferences.' });
+    return this.getTrip();
+  }
+
   applyPreferenceDecision(interestScores: GroupPreference['interestScores']): Trip {
     if (!this.trip.preferenceCollection) throw new Error('Collect group preferences before approving a plan.');
     const ranked = Object.entries(interestScores).sort(([, left], [, right]) => right - left).slice(0, 3).map(([interest]) => interest);
@@ -370,34 +428,48 @@ export class DemoStore {
   selectHotel(hotelId: string): Trip {
     this.trip.hotels = this.trip.hotels.map((hotel) => ({ ...hotel, selected: hotel.id === hotelId }));
     const selected = this.trip.hotels.find((hotel) => hotel.id === hotelId);
-    if (selected) this.recalculateBudget(this.trip.budget.flight, selected.totalPrice);
+    if (selected) {
+      this.recalculateBudget(this.trip.budget.flight, selected.totalPrice);
+      this.trip.itinerary = this.trip.itinerary.map((item) => {
+        if (item.id.startsWith('hotel-start-')) return { ...item, title: item.day === 1 ? `Check in · ${selected.name}` : `Breakfast · ${selected.name}`, subtitle: selected.location };
+        if (item.id.startsWith('hotel-return-')) return { ...item, title: `Return to · ${selected.name}`, subtitle: selected.location };
+        if (item.id.startsWith('dinner-')) return { ...item, title: `Dinner near ${selected.name}`, subtitle: selected.location };
+        return item;
+      });
+      this.trip.events.unshift({ id: `hotel-route-${Date.now()}`, type: 'tired', title: `Daily routes rebased to ${selected.name}`, createdAt: new Date().toISOString(), explanation: 'Every daily map route now starts and ends at the hotel selected in Booking & payment.' });
+    }
     return this.getTrip();
   }
 
   updateFromRequest(request: Trip['request'], places: PlaceAttraction[] = [], briefTranscript?: string): Trip {
-    this.trip.request = { ...this.trip.request, ...request };
-    const departureDate = this.trip.request.departureDate ?? '2026-10-12';
-    const returnDate = this.trip.request.returnDate ?? new Date(new Date(`${departureDate}T12:00:00Z`).getTime() + (Math.max(1, request.duration - 1) * 86_400_000)).toISOString().slice(0, 10);
-    this.trip.request.departureDate = departureDate;
-    this.trip.request.returnDate = returnDate;
+    const hadPriorBrief = Boolean(this.trip.briefTranscript);
+    const dates = normalizedTripDates(request.departureDate ?? this.trip.request.departureDate, request.returnDate, request.duration);
+    const normalizedRequest = { ...this.trip.request, ...request, ...dates };
+    this.trip.request = normalizedRequest;
+    const { departureDate, returnDate, duration } = normalizedRequest;
     const departure = new Date(`${departureDate}T12:00:00Z`);
     const returning = new Date(`${returnDate}T12:00:00Z`);
     this.trip.dates = `${departure.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}–${returning.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}`;
-    this.trip.travelers = this.trip.travelers.slice(0, Math.max(1, request.travelers));
-    while (this.trip.travelers.length < request.travelers) {
+    // A fresh trip brief must not inherit the Japan demo's named travelers.
+    // It creates exactly the requested number of friend slots for the organizer
+    // to name and optionally attach phone numbers to.
+    if (!hadPriorBrief) this.trip.travelers = [];
+    this.trip.travelers = this.trip.travelers.slice(0, Math.max(1, normalizedRequest.travelers));
+    while (this.trip.travelers.length < normalizedRequest.travelers) {
       const number = this.trip.travelers.length + 1;
-      this.trip.travelers.push({ id: `t-traveler-${number}`, name: `Traveler ${number}`, initials: `T${number}`, budgetPreference: 'balanced', activityLevel: 3, pacePreference: 'balanced', foodPreference: 'No preference added', interests: interests({ culture: 3, food: 3, nature: 3 }) });
+      this.trip.travelers.push({ id: `t-friend-${number}-${Date.now().toString(36)}`, name: `Friend ${number}`, initials: `F${number}`, budgetPreference: 'balanced', activityLevel: 3, pacePreference: 'balanced', foodPreference: 'No preference added', interests: interests({ culture: 3, food: 3, nature: 3 }) });
     }
-    this.trip.name = `${request.destination}, together`;
-    this.trip.itinerary = places.length >= 2 ? itineraryFromPlaces(request.duration, places) : itineraryFor(request.destination, request.duration);
-    this.setBookingOptions(request.destination, request.origin);
+    this.setBookingOptions(normalizedRequest.destination, normalizedRequest.origin);
+    this.trip.name = `${normalizedRequest.destination}, together`;
+    const selectedHotelForRoute = this.trip.hotels.find((hotel) => hotel.selected) ?? this.trip.hotels[0];
+    this.trip.itinerary = places.length >= 2 && selectedHotelForRoute ? itineraryFromPlaces(normalizedRequest.destination, duration, places, selectedHotelForRoute) : itineraryFor(normalizedRequest.destination, duration);
     const selectedFlight = this.trip.flights.find((flight) => flight.selected) ?? this.trip.flights[0];
-    const hotelNights = Math.max(1, request.duration - 1 - (selectedFlight?.arrivalTime.includes('+1') ? 1 : 0));
+    const hotelNights = Math.max(1, duration - 1 - (selectedFlight?.arrivalTime.includes('+1') ? 1 : 0));
     this.trip.hotels = this.trip.hotels.map((hotel) => ({ ...hotel, totalPrice: hotel.price * hotelNights }));
     const selectedHotel = this.trip.hotels.find((hotel) => hotel.selected) ?? this.trip.hotels[0];
-    if (selectedFlight && selectedHotel) this.recalculateBudget(selectedFlight.price * request.travelers, selectedHotel.totalPrice);
-    this.trip.events = [{ id: `brief-${Date.now()}`, type: 'tired', title: `${request.destination} trip brief created`, createdAt: new Date().toISOString(), explanation: `${places.length >= 2 ? 'Google Places sourced real attractions for' : 'A curated route is ready for'} your ${request.duration}-day ${request.destination} itinerary. Every page now reflects this proposed trip.` }];
-    this.trip.groupPreference = { ...this.trip.groupPreference, explanation: `The ${request.destination} route prioritizes ${request.interests.slice(0, 3).join(', ')} while keeping the group’s preferred pace.` };
+    if (selectedFlight && selectedHotel) this.recalculateBudget(selectedFlight.price * normalizedRequest.travelers, selectedHotel.totalPrice);
+    this.trip.events = [{ id: `brief-${Date.now()}`, type: 'tired', title: `${normalizedRequest.destination} trip brief created`, createdAt: new Date().toISOString(), explanation: `${places.length >= 2 ? 'Google Places sourced real attractions for' : 'A curated route is ready for'} your ${duration}-day ${normalizedRequest.destination} itinerary. Every page now reflects this proposed trip.` }];
+    this.trip.groupPreference = { ...this.trip.groupPreference, explanation: `The ${normalizedRequest.destination} route prioritizes ${normalizedRequest.interests.slice(0, 3).join(', ')} while keeping the group’s preferred pace.` };
     this.trip.preferenceCollection = undefined;
     this.trip.briefTranscript = briefTranscript;
     this.trip.expenses = [];
@@ -578,7 +650,7 @@ export class DemoStore {
     };
     const arrival = isYellowstone ? 'BZN' : isTahoe ? 'RNO' : airportCode(destination, 'DST');
     const hotelName = isYellowstone ? 'Canyon Lodge & Cabins' : isTahoe ? 'Basecamp Tahoe South' : `${destination} Explorer Lodge`;
-    const location = isYellowstone ? 'Canyon Village · Yellowstone' : isTahoe ? 'South Lake Tahoe · California' : `Central ${destination}`;
+    const location = isYellowstone ? 'Canyon Village · Yellowstone' : isTahoe ? 'South Lake Tahoe · California' : destination.toLowerCase() === 'japan' ? 'Tokyo · Japan' : `Central ${destination}`;
     const departure = airportCode(origin, 'SFO');
     this.trip.flights = [
       { id: 'f-primary', airline: isYellowstone ? 'United' : isTahoe ? 'Alaska' : 'Journey Air', code: isYellowstone ? 'UA 2146' : isTahoe ? 'AS 3381' : 'JO 101', departure, arrival, departureTime: '08:10', arrivalTime: '11:42', price: 390, duration: '3h 32m', stops: 0, selected: true },

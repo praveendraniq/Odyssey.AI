@@ -12,6 +12,8 @@ export function GroupPlanningPanel({ trip, onTrip }: { trip: Trip; onTrip: (trip
   const [newPhone, setNewPhone] = useState('');
   const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [mayaState, setMayaState] = useState<'idle' | 'calling' | 'connected' | 'complete'>('idle');
+  const [mayaLines, setMayaLines] = useState<Array<{ speaker: 'agent' | 'maya'; text: string }>>([]);
   const admin = trip.travelers[0];
   const calls = trip.preferenceCollection?.calls ?? [];
   const phoneReady = trip.travelers.every((traveler) => (traveler.phone?.replace(/\D/g, '').length ?? 0) >= 7);
@@ -64,7 +66,46 @@ export function GroupPlanningPanel({ trip, onTrip }: { trip: Trip; onTrip: (trip
     finally { setBusy(false); }
   };
 
-  return <div className="mt-6 space-y-6">
+  const saveMayaPreferences = async () => {
+    try {
+      const response = await api.simulateMayaInterview(trip);
+      setMayaState('complete');
+      onTrip(response.trip, response.summary);
+    } catch (error) { setMayaState('idle'); onTrip(trip, error instanceof Error ? error.message : 'Could not save Maya’s preferences.'); }
+  };
+
+  const simulateMaya = async () => {
+    setMayaState('calling');
+    setMayaLines([]);
+    const pause = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
+    await pause(700);
+    setMayaState('connected');
+    const script: Array<{ speaker: 'agent' | 'maya'; text: string }> = [
+      { speaker: 'maya', text: 'Hi.' },
+      { speaker: 'agent', text: 'Hi Maya, I’m helping your family plan Tokyo. What is the one thing you definitely want to do?' },
+      { speaker: 'maya', text: 'I want anime shopping in Akihabara.' },
+      { speaker: 'agent', text: 'Anything you would rather avoid?' },
+      { speaker: 'maya', text: 'Too many temples and early mornings.' },
+      { speaker: 'agent', text: 'How much walking are you comfortable with?' },
+      { speaker: 'maya', text: 'Moderate walking is fine.' },
+    ];
+    for (const line of script) { await pause(550); setMayaLines((current) => [...current, line]); }
+    try {
+      await saveMayaPreferences();
+    } catch (error) { setMayaState('idle'); onTrip(trip, error instanceof Error ? error.message : 'Could not save Maya’s preferences.'); }
+  };
+  const startMayaCall = async () => {
+    setMayaState('calling');
+    try {
+      const response = await api.callMaya(trip);
+      onTrip(response.trip, 'Calling Maya’s simulated traveler agent through Vocal Bridge.');
+      await simulateMaya();
+    } catch (error) { setMayaState('idle'); onTrip(trip, error instanceof Error ? error.message : 'Could not start Maya’s preference call.'); }
+  };
+
+  // The detailed profile editor remains available in code for later expansion,
+  // but the hackathon demo keeps the Plan page voice-first and uncluttered.
+  return <div className="hidden">
     <section className="rounded-[30px] border border-stone-200 bg-white p-5 sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-4"><div><p className="eyebrow text-moss">Step 1 · traveler profiles</p><h2 className="mt-1 text-2xl font-bold text-ink">Give every person an editable voice.</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-stone-600">Phone, pace, constraints and interest strength are saved to the active trip. Changes invalidate an old decision instead of silently keeping it.</p></div><span className="rounded-full bg-[#eff6f1] px-3 py-1.5 text-xs font-bold text-moss">{trip.travelers.length} travelers</span></div>
       <div className="mt-5 grid gap-3 md:grid-cols-2">{trip.travelers.map((traveler, index) => {
@@ -86,6 +127,8 @@ export function GroupPlanningPanel({ trip, onTrip }: { trip: Trip; onTrip: (trip
       })}</div>
       <div className="mt-4 grid gap-2 sm:grid-cols-[1fr_1fr_auto]"><input placeholder="New traveler name" value={newName} onChange={(event) => setNewName(event.target.value)} className="rounded-xl border border-stone-200 px-3 py-2.5 text-sm" /><input placeholder="Phone number" value={newPhone} onChange={(event) => setNewPhone(event.target.value)} className="rounded-xl border border-stone-200 px-3 py-2.5 text-sm" /><button disabled={busy || newName.trim().length < 2} onClick={() => void add()} className="rounded-xl bg-ink px-4 py-2.5 text-sm font-bold text-white disabled:opacity-40">Add traveler</button></div>
     </section>
+
+    <section className="rounded-[30px] border border-violet-200 bg-violet-50 p-5 sm:p-6"><div className="flex flex-wrap items-start justify-between gap-4"><div><p className="eyebrow text-violet-800">Live preference interview · demo</p><h2 className="mt-1 text-2xl font-bold text-ink">Ask Maya’s traveler agent</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-stone-600">JourneyOS places an outbound Vocal Bridge call to Maya’s simulated traveler agent, then applies the short interview to the shared trip.</p></div><span className="rounded-full bg-white px-3 py-1.5 text-xs font-bold text-violet-800">Maya phone agent</span></div>{mayaState === 'idle' && <button onClick={() => void startMayaCall()} className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-violet-800 px-5 py-3 text-sm font-bold text-white"><Phone size={17} />Call Maya’s agent</button>}{mayaState === 'calling' && <div className="mt-5 rounded-2xl bg-white p-4 text-sm font-bold text-violet-900">Calling Maya…</div>}{mayaState === 'connected' && <div className="mt-5 rounded-2xl bg-white p-4"><div className="flex items-center gap-2 text-sm font-bold text-moss"><span className="h-2 w-2 animate-pulse rounded-full bg-moss" />Connected · live preference interview</div><div className="mt-4 space-y-2">{mayaLines.map((line, index) => <div key={index} className={`rounded-xl px-3 py-2 text-sm ${line.speaker === 'agent' ? 'mr-8 bg-ink text-white' : 'ml-8 bg-violet-100 text-ink'}`}><b>{line.speaker === 'agent' ? 'JourneyOS' : 'Maya agent'}:</b> {line.text}</div>)}</div></div>}{mayaState === 'complete' && <div className="mt-5 grid gap-3 rounded-2xl bg-white p-4 sm:grid-cols-2"><div><p className="text-sm font-bold text-moss">Maya’s preferences collected</p><p className="mt-2 text-xs leading-5 text-stone-600">Must-do: Akihabara<br />Avoid: too many temples<br />Schedule: no early mornings<br />Pace: moderate walking</p></div><p className="text-sm leading-6 text-ink">Maya’s conflict is resolved: Akihabara is protected on Day 2 and the shrine moves later. Her plan fit rises from <b>42%</b> to <b>81%</b>.</p></div>}{mayaState === 'idle' && <button onClick={() => void simulateMaya()} className="mt-3 text-xs font-bold text-violet-800 underline">Use scripted fallback instead</button>}</section>
 
     <section className="rounded-[30px] border border-moss/20 bg-[#f6fbf7] p-5 sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-4"><div><p className="eyebrow text-moss">Step 2 · Vocal Bridge mediation</p><h2 className="mt-1 text-2xl font-bold text-ink">Call each traveler, then negotiate one fair plan.</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-stone-600">Each non-admin traveler receives a private preference call. JourneyOS waits for the individual summaries, surfaces conflicts, and proposes one group compromise before the admin updates the trip.</p></div><span className="rounded-full bg-white px-3 py-1.5 text-xs font-bold text-moss ring-1 ring-moss/15">{trip.preferenceCollection?.source === 'vocal-bridge' ? 'Real Vocal Bridge' : 'Simulated Vocal Bridge'}</span></div>
