@@ -6,7 +6,7 @@ import { promisify } from 'node:util';
 const run = promisify(execFile);
 
 const defaultRequest: TripRequest = {
-  origin: 'San Francisco', destination: 'Japan', departureDate: '2026-10-12', returnDate: '2026-10-16', duration: 5, travelers: 4, budget: 6000,
+  origin: 'San Francisco', destination: 'Tokyo', departureDate: '2026-10-12', returnDate: '2026-10-16', duration: 5, travelers: 4, budget: 6000,
   travelStyle: 'culture-forward, unhurried', foodPreferences: ['sushi', 'vegetarian friendly'],
   interests: ['culture', 'history', 'food', 'photography'],
 };
@@ -42,7 +42,7 @@ const readDate = (value: string): string | undefined => {
  * of an eventual Vocal Bridge structured conversation response.
  */
 export class VocalBridgeService {
-  async callMayaAgent(): Promise<void> {
+  async callPrabhuAgent(): Promise<void> {
     if (!config.vocalBridge.mayaPhone) throw new Error('Maya’s Vocal Bridge phone number is not configured.');
     try {
       // The currently selected `vb` CLI agent is the JourneyOS main agent. It
@@ -62,10 +62,12 @@ export class VocalBridgeService {
     const value = conversation.toLowerCase();
     const request = structuredClone(defaultRequest);
     const destinationMatch = value.match(/(?:trip|travel(?:ing)?|going|fly(?:ing)?|heading)\s+to\s+([a-z][a-z '-]+?)(?:\s+(?:for|under|with|from|during|and|this|next|on|leaving|departing)\b|[.,]|$)|(?:visit(?:ing)?|destination is)\s+([a-z][a-z '-]+?)(?:\s+(?:for|under|with|from|during|and|this|next|on)\b|[.,]|$)/i)?.slice(1).find(Boolean)?.trim();
-    const knownDestination = ['china', 'japan', 'kyoto', 'tokyo', 'bali', 'thailand', 'bangkok', 'paris', 'france', 'italy', 'rome', 'spain', 'london', 'greece', 'mexico', 'india', 'singapore', 'australia', 'new zealand'].find((place) => new RegExp(`\\b${place}\\b`, 'i').test(value));
+    const knownDestination = ['chennai', 'china', 'japan', 'kyoto', 'tokyo', 'bali', 'thailand', 'bangkok', 'paris', 'france', 'italy', 'rome', 'spain', 'london', 'greece', 'mexico', 'india', 'singapore', 'australia', 'new zealand'].find((place) => new RegExp(`\\b${place}\\b`, 'i').test(value));
+    const destinationPhrase = value.match(/(?:plan|book|create|make)\s+(?:me\s+)?(?:a\s+)?(?:trip\s+)?(?:to\s+)?([a-z][a-z '-]+?)(?=\s+(?:for|under|with|from|during|and|this|next|on|leaving|departing)\b|[.,]|$)/i)?.[1]?.trim();
+    const bareDestination = /^[a-z][a-z '-]{1,30}$/i.test(conversation.trim()) ? conversation.trim() : undefined;
     // Prefer a recognized destination over a broad phrase such as "things to do in Tokyo".
     const destinationLooksLikePreference = !destinationMatch || destinationMatch.length > 40 || /\b(see|place|young|people|traveler|vegetarian|budget|prefer|want|like|pace|food|activity|possible)\b/i.test(destinationMatch);
-    const destination = knownDestination ?? (destinationLooksLikePreference ? undefined : destinationMatch);
+    const destination = knownDestination ?? (destinationLooksLikePreference ? destinationPhrase ?? bareDestination : destinationMatch);
     if (destination) request.destination = destination.replace(/\b\w/g, (letter) => letter.toUpperCase());
     const originMatch = value.match(/(?:from|leaving|departing from)\s+([a-z][a-z '-]+?)(?=\s+(?:to|on|for|departing|leaving)\b|[,.]|$)/i)?.[1]?.trim();
     if (originMatch) request.origin = originMatch.replace(/\b\w/g, (letter) => letter.toUpperCase());

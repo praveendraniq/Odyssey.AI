@@ -25,3 +25,11 @@ test('mock extraction understands China phrasing and varies confidence by eviden
   assert.notEqual(detailed.confidence, 0.94);
   assert.ok(detailed.confidence > sparse.confidence);
 });
+
+test('mock extraction accepts Chennai as both a brief and a bare destination', async () => {
+  const planner = new VocalBridgeService();
+  const brief = await planner.extractTrip('Plan a trip to Chennai for 4 friends with food and culture.');
+  const bare = await planner.extractTrip('Chennai');
+  assert.equal(brief.request.destination, 'Chennai');
+  assert.equal(bare.request.destination, 'Chennai');
+});

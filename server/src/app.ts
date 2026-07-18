@@ -26,7 +26,7 @@ const progressSchema = z.object({ id: z.string().min(1).optional(), action: z.en
 const travelerSchema = z.object({ action: z.enum(['add', 'update', 'remove']), id: z.string().min(1).optional(), name: z.string().min(2).max(60).optional(), phone: z.string().max(30).optional(), budgetPreference: z.enum(['value', 'balanced', 'premium']).optional(), activityLevel: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5)]).optional(), pacePreference: z.enum(['easy', 'balanced', 'full']).optional(), foodPreference: z.string().min(2).max(100).optional(), interests: z.object({ culture: z.number().min(1).max(5), history: z.number().min(1).max(5), food: z.number().min(1).max(5), photography: z.number().min(1).max(5), shopping: z.number().min(1).max(5), nightlife: z.number().min(1).max(5), nature: z.number().min(1).max(5) }).optional(), trip: z.unknown().optional() });
 const tripDetailsSchema = z.object({ origin: z.string().min(2).max(80), destination: z.string().min(2).max(80), departureDate: z.string().date(), returnDate: z.string().date(), trip: z.unknown().optional() });
 const receiptSchema = z.object({ amount: z.number().positive().optional(), restaurant: z.string().min(1).optional(), fileName: z.string().optional(), category: z.enum(['food', 'transport', 'activity', 'other']).optional(), paidBy: z.string().optional(), participantIds: z.array(z.string()).optional(), trip: z.unknown().optional() });
-const orderSchema = z.object({ percentages: z.record(z.string(), z.number().min(0).max(100)).optional() }).superRefine((value, ctx) => { if (value.percentages && Math.abs(Object.values(value.percentages).reduce((sum, item) => sum + item, 0) - 100) > 0.01) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Custom split must total 100%' }); });
+const orderSchema = z.object({ percentages: z.record(z.string(), z.number().min(0).max(100)).optional(), total: z.number().positive().max(100_000).optional() }).superRefine((value, ctx) => { if (value.percentages && Math.abs(Object.values(value.percentages).reduce((sum, item) => sum + item, 0) - 100) > 0.01) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Custom split must total 100%' }); });
 const weatherSchema = z.object({ destination: z.string().min(2).max(80) });
 const voiceTokenSchema = z.object({ participant_name: z.string().min(1).max(80).optional() });
 const sabreSearchSchema = z.object({ origin: z.string().trim().length(3).toUpperCase(), destination: z.string().trim().length(3).toUpperCase(), departureDate: z.string().date(), returnDate: z.string().date(), adults: z.number().int().min(1).max(9) });
@@ -168,19 +168,19 @@ export const createApp = () => {
     try { const input = preferenceDecisionSchema.parse(req.body); if (input.trip) store.hydrate(input.trip as ReturnType<typeof store.getTrip>); res.json({ trip: store.applyPreferenceDecision(input.interestScores as ReturnType<typeof store.getTrip>['groupPreference']['interestScores']) }); }
     catch (error) { next(error); }
   });
-  app.post('/api/planner/simulate-maya-interview', (req, res, next) => {
+  app.post('/api/planner/simulate-prabhu-interview', (req, res, next) => {
     try {
       const { trip } = simulatedInterviewSchema.parse(req.body);
       if (trip) store.hydrate(trip as ReturnType<typeof store.getTrip>);
       res.json({ trip: store.completeSimulatedMayaInterview(), summary: 'Maya’s preference conflicts with the culture-heavy Day 2. I kept the family shrine, added Akihabara, and moved the early activity later. Maya’s satisfaction rises from 42% to 81% while every traveler stays above 72%.' });
     } catch (error) { next(error); }
   });
-  app.post('/api/planner/call-maya', async (req, res, next) => {
+  app.post('/api/planner/call-prabhu', async (req, res, next) => {
     try {
       const { trip } = simulatedInterviewSchema.parse(req.body);
       if (trip) store.hydrate(trip as ReturnType<typeof store.getTrip>);
-      await planner.callMayaAgent();
-      res.json({ trip: store.startMayaPreferenceCall() });
+      await planner.callPrabhuAgent();
+      res.json({ trip: store.startPrabhuPreferenceCall() });
     } catch (error) { next(error); }
   });
 
@@ -244,8 +244,8 @@ export const createApp = () => {
   app.post('/api/payments/create-order', async (req, res, next) => {
     try {
       const trip = store.getTrip();
-      const { percentages } = orderSchema.parse(req.body ?? {});
-      const order = await payments.createOrder(knownBookingTotal(trip), trip.travelers, percentages);
+      const { percentages, total } = orderSchema.parse(req.body ?? {});
+      const order = await payments.createOrder(total ?? knownBookingTotal(trip), trip.travelers, percentages);
       orders.set(order.id, order);
       res.json({ order });
     } catch (error) { next(error); }

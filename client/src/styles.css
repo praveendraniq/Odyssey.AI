@@ -28,6 +28,11 @@ section[class*="rounded-[24px]"][class*="border-stone-200"][class*="p-5"] {
   button { -webkit-tap-highlight-color: transparent; }
 }
 
+@media (max-width: 640px) {
+  html, body, #root { max-width: 100%; overflow-x: hidden; }
+  main, main > *, main .grid, main .grid > *, main section, main article { min-width: 0; max-width: 100%; }
+}
+
 @layer components {
   .font-display { font-family: 'Playfair Display', serif; }
   .eyebrow { @apply text-[10px] font-extrabold uppercase tracking-[0.16em] text-stone-400; }

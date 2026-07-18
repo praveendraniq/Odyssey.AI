@@ -53,8 +53,9 @@ test('skip and deterministic reset restore a reproducible demo', () => {
   assert.ok(stop);
   assert.equal(store.skipStop(stop.id).itinerary.find((item) => item.id === stop.id)?.status, 'skipped');
   const reset = store.reset();
-  assert.equal(reset.id, 'trip-japan-2026');
-  assert.equal(reset.request.destination, 'Japan');
+  assert.equal(reset.id, 'trip-tokyo-2026');
+  assert.deepEqual(reset.travelers.map((traveler) => traveler.name), ['Hema', 'Prabhu', 'Deepu', 'Sanjay']);
+  assert.equal(reset.request.destination, 'Tokyo');
   assert.equal(reset.schemaVersion, 2);
 });
 

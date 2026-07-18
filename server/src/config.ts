@@ -1,4 +1,14 @@
-import 'dotenv/config';
+import { config as loadEnv } from 'dotenv';
+import { existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
+// Always load the server-owned environment file when present. The root dev
+// command keeps the repository as process.cwd(), which previously caused
+// dotenv to load the older root .env and silently miss server-only settings
+// such as VOCAL_BRIDGE_AGENT_ID. Existing shell variables still take priority.
+const serverEnvPath = fileURLToPath(new URL('../.env', import.meta.url));
+const rootEnvPath = fileURLToPath(new URL('../../.env', import.meta.url));
+loadEnv({ path: existsSync(serverEnvPath) ? serverEnvPath : rootEnvPath });
 
 const bool = (value: string | undefined, fallback: boolean) => value === undefined ? fallback : value === 'true';
 

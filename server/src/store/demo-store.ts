@@ -7,10 +7,10 @@ const interests = (scores: Partial<Record<Interest, number>>): Record<Interest, 
 });
 
 const travelers: Traveler[] = [
-  { id: 't-aya', name: 'Aya', initials: 'AY', phone: '+1 (415) 555-0101', budgetPreference: 'balanced', activityLevel: 4, pacePreference: 'full', foodPreference: 'Sushi & regional food', interests: interests({ culture: 5, history: 5, food: 4, photography: 3 }) },
-  { id: 't-marcus', name: 'Marcus', initials: 'MR', phone: '+1 (415) 555-0148', budgetPreference: 'premium', activityLevel: 3, pacePreference: 'balanced', foodPreference: 'Street food', interests: interests({ food: 5, photography: 4, nightlife: 3, shopping: 3 }) },
-  { id: 't-leila', name: 'Leila', initials: 'LE', phone: '+1 (415) 555-0172', budgetPreference: 'balanced', activityLevel: 4, pacePreference: 'balanced', foodPreference: 'Vegetarian friendly', interests: interests({ culture: 5, history: 4, photography: 5, nature: 4 }) },
-  { id: 't-jon', name: 'Jon', initials: 'JO', phone: '+1 (415) 555-0196', budgetPreference: 'value', activityLevel: 3, pacePreference: 'easy', foodPreference: 'No shellfish', interests: interests({ culture: 4, food: 4, nature: 4, shopping: 1 }) },
+  { id: 't-hema', name: 'Hema', initials: 'HE', phone: '+14155550101', budgetPreference: 'balanced', activityLevel: 4, pacePreference: 'full', foodPreference: 'Sushi & regional food', interests: interests({ culture: 5, history: 5, food: 4, photography: 3 }) },
+  { id: 't-prabhu', name: 'Prabhu', initials: 'PR', phone: '+14155550148', budgetPreference: 'premium', activityLevel: 3, pacePreference: 'balanced', foodPreference: 'Street food', interests: interests({ food: 5, photography: 4, nightlife: 3, shopping: 3 }) },
+  { id: 't-deepu', name: 'Deepu', initials: 'DE', phone: '+14155550172', budgetPreference: 'balanced', activityLevel: 4, pacePreference: 'balanced', foodPreference: 'Vegetarian friendly', interests: interests({ culture: 5, history: 4, photography: 5, nature: 4 }) },
+  { id: 't-sanjay', name: 'Sanjay', initials: 'SA', phone: '+14155550196', budgetPreference: 'value', activityLevel: 3, pacePreference: 'easy', foodPreference: 'No shellfish', interests: interests({ culture: 4, food: 4, nature: 4, shopping: 1 }) },
 ];
 
 const route = (id: string, day: number, time: string, title: string, subtitle: string, category: ItineraryItem['category'], x: number, y: number, durationMins: number, travelMins: number, status: ItineraryItem['status'], weatherSensitive = false): ItineraryItem => ({
@@ -164,12 +164,12 @@ export class DemoStore {
   constructor() {
     this.trip = {
       schemaVersion: 2,
-      id: 'trip-japan-2026', name: 'Japan, together', dates: '12–16 Oct 2026',
-      request: { origin: 'San Francisco', destination: 'Japan', departureDate: '2026-10-12', returnDate: '2026-10-16', duration: 5, travelers: 4, budget: 6000, travelStyle: 'culture-forward, unhurried', foodPreferences: ['sushi', 'vegetarian friendly', 'street food'], interests: ['culture', 'history', 'food', 'photography'] },
-      travelers,
-      groupPreference,
+      id: 'trip-tokyo-2026', name: 'Tokyo, together', dates: '12–16 Oct 2026',
+      request: { origin: 'San Francisco', destination: 'Tokyo', departureDate: '2026-10-12', returnDate: '2026-10-16', duration: 5, travelers: 4, budget: 6000, travelStyle: 'culture-forward, unhurried', foodPreferences: ['sushi', 'vegetarian friendly', 'street food'], interests: ['culture', 'history', 'food', 'photography'] },
+      travelers: structuredClone(travelers),
+      groupPreference: structuredClone(groupPreference),
       flights: [
-        { id: 'f-jal', airline: 'Japan Airlines', code: 'JL 001', departure: 'SFO', arrival: 'HND', departureTime: '11:45', arrivalTime: '16:20 +1', price: 1120, duration: '11h 35m', stops: 0, selected: true },
+        { id: 'f-aa', airline: 'American Airlines', code: 'AA 8400', departure: 'SFO', arrival: 'HND', departureTime: '11:45', arrivalTime: '16:20 +1', price: 990, duration: '11h 35m', stops: 0, selected: true },
         { id: 'f-ana', airline: 'ANA', code: 'NH 107', departure: 'SFO', arrival: 'HND', departureTime: '13:10', arrivalTime: '17:45 +1', price: 1055, duration: '11h 35m', stops: 0 },
         { id: 'f-united', airline: 'United', code: 'UA 875', departure: 'SFO', arrival: 'HND', departureTime: '10:40', arrivalTime: '15:30 +1', price: 980, duration: '11h 50m', stops: 0 },
       ],
@@ -178,8 +178,8 @@ export class DemoStore {
         { id: 'h-nol', name: 'nol kyoto sanjo', location: 'Sanjo, Kyoto', rating: 4.7, price: 235, totalPrice: 470, image: 'nol', amenities: ['Central Kyoto', 'Family room', 'Laundry'] },
         { id: 'h-thegate', name: 'THE GATE HOTEL', location: 'Kaminarimon, Tokyo', rating: 4.6, price: 208, totalPrice: 624, image: 'Gate', amenities: ['Rooftop', 'Metro access', 'Gym'] },
       ],
-      itinerary,
-      budget: { total: 6000, spent: 4768, remaining: 1232, flight: 1120 * 4, hotel: 894, activities: 610, food: 384 },
+      itinerary: structuredClone(itinerary),
+      budget: { total: 6000, spent: 5848, remaining: 152, flight: 990 * 4, hotel: 894, activities: 610, food: 384 },
       travelDna: { culture: 5, history: 5, photography: 4, shopping: 1, nightlife: 2, food: 5, learning: 'The group lingers at temples and food stops; preserve open time around cultural neighborhoods.' },
       events: [],
       progress: 28,
@@ -210,6 +210,12 @@ export class DemoStore {
       skippedStopIds: migrated.itinerary.filter((item) => item.status === 'skipped').map((item) => item.id),
     };
     this.trip = migrated;
+    // Upgrade saved demo trips created before the labeled AA bundle inventory.
+    // Real Sabre selections are never replaced because they do not use the
+    // Journey Air placeholder brand.
+    if (this.trip.flights.some((flight) => flight.airline === 'Journey Air')) {
+      this.setBookingOptions(this.trip.request.destination, this.trip.request.origin);
+    }
     this.updateProgress();
   }
 
@@ -360,11 +366,11 @@ export class DemoStore {
     return this.getTrip();
   }
 
-  completeSimulatedMayaInterview(): Trip {
-    const maya = this.trip.travelers.find((traveler) => traveler.name === 'Maya') ?? this.trip.travelers[1];
+  completeSimulatedPrabhuInterview(): Trip {
+    const maya = this.trip.travelers.find((traveler) => traveler.name === 'Prabhu') ?? this.trip.travelers[1];
     if (!maya) throw new Error('Add a traveler before starting the preference interview.');
     Object.assign(maya, {
-      name: 'Maya', initials: 'MY', pacePreference: 'balanced' as const, foodPreference: 'Street food',
+      name: 'Prabhu', initials: 'PR', pacePreference: 'balanced' as const, foodPreference: 'Street food',
       interests: interests({ culture: 1, history: 1, food: 5, photography: 3, shopping: 5, nightlife: 3, nature: 2 }),
     });
     const shrine = this.trip.itinerary.find((item) => item.id === 'i-meiji');
@@ -385,8 +391,12 @@ export class DemoStore {
     return this.getTrip();
   }
 
-  startMayaPreferenceCall(): Trip {
-    const maya = this.trip.travelers.find((traveler) => traveler.name === 'Maya') ?? this.trip.travelers[1];
+  completeSimulatedMayaInterview(): Trip {
+    return this.completeSimulatedPrabhuInterview();
+  }
+
+  startPrabhuPreferenceCall(): Trip {
+    const maya = this.trip.travelers.find((traveler) => traveler.name === 'Prabhu') ?? this.trip.travelers[1];
     if (!maya) throw new Error('Add a traveler before starting the preference interview.');
     this.trip.preferenceCollection = {
       adminName: this.trip.travelers[0]?.name ?? 'Trip admin', adminWeight: 1.5, source: 'vocal-bridge', status: 'pending',
@@ -450,10 +460,10 @@ export class DemoStore {
     const departure = new Date(`${departureDate}T12:00:00Z`);
     const returning = new Date(`${returnDate}T12:00:00Z`);
     this.trip.dates = `${departure.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}–${returning.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}`;
-    // A fresh trip brief must not inherit the Japan demo's named travelers.
-    // It creates exactly the requested number of friend slots for the organizer
-    // to name and optionally attach phone numbers to.
-    if (!hadPriorBrief) this.trip.travelers = [];
+    // Keep the four named friends when the canonical Tokyo voice brief is used.
+    // A genuinely new destination still receives editable friend placeholders.
+    const canonicalTokyoBrief = /tokyo/i.test(normalizedRequest.destination) && normalizedRequest.travelers === 4;
+    if (!hadPriorBrief && !canonicalTokyoBrief) this.trip.travelers = [];
     this.trip.travelers = this.trip.travelers.slice(0, Math.max(1, normalizedRequest.travelers));
     while (this.trip.travelers.length < normalizedRequest.travelers) {
       const number = this.trip.travelers.length + 1;
@@ -483,7 +493,7 @@ export class DemoStore {
       const updates: Record<TripEvent['type'], { title: string; explanation: string }> = {
         late: { title: 'Running late +90 minutes', explanation: `JourneyOS moved the next ${this.trip.request.destination} stop later and protected the group’s highest-priority experience.` },
         rain: { title: 'Heavy rain forecast', explanation: `JourneyOS swapped the next outdoor ${this.trip.request.destination} moment for an indoor cultural option and kept travel time low.` },
-        'flight-delay': { title: 'Flight delayed by 2 hours', explanation: `JourneyOS shortened the arrival-day plan in ${this.trip.request.destination} and held the next confirmed experience.` },
+        'flight-delay': { title: 'Flight delayed by 4 hours', explanation: `JourneyOS protected late hotel check-in, shortened the arrival-day plan in ${this.trip.request.destination}, and moved the displaced priority to tomorrow.` },
         closed: { title: 'Attraction closed', explanation: `JourneyOS replaced the unavailable ${this.trip.request.destination} stop with a nearby option that matches the group’s interests.` },
         tired: { title: 'Traveler energy is low', explanation: `JourneyOS reduced walking in ${this.trip.request.destination} while preserving one meaningful group highlight.` },
       };
@@ -513,8 +523,8 @@ export class DemoStore {
         },
       },
       'flight-delay': {
-        title: 'Flight delayed by 2 hours',
-        explanation: 'Hotel check-in was held and the first evening is now a short Kanda dinner. Sensō-ji moved to tomorrow’s golden hour, when the transit time is 12 minutes shorter.',
+        title: 'Flight delayed by 4 hours',
+        explanation: 'Hotel check-in was held for the four-hour delay and the first evening is now a short vegetarian-friendly Kanda dinner. Sensō-ji moved to tomorrow’s golden hour, when the transit time is 12 minutes shorter.',
         mutate: () => this.move('i-sensoji', 2, '17:30', 'moved'),
       },
       closed: {
@@ -639,28 +649,32 @@ export class DemoStore {
     const place = destination.toLowerCase();
     const isYellowstone = place.includes('yellowstone') || place.includes('yellow stone');
     const isTahoe = place.includes('lake tahoe') || place.includes('tahoe');
+    const isTokyo = place.includes('tokyo') || place.includes('japan');
     const airportCode = (value: string | undefined, fallback: string) => {
       const key = (value ?? '').trim().toLowerCase();
       const known: Record<string, string> = {
         'san francisco': 'SFO', 'new york': 'JFK', nyc: 'JFK', 'los angeles': 'LAX', chicago: 'ORD',
         seattle: 'SEA', boston: 'BOS', miami: 'MIA', london: 'LHR', paris: 'CDG', tokyo: 'NRT',
-        japan: 'NRT', rome: 'FCO', bangkok: 'BKK', bali: 'DPS', singapore: 'SIN', delhi: 'DEL',
+        japan: 'NRT', rome: 'FCO', bangkok: 'BKK', bali: 'DPS', singapore: 'SIN', delhi: 'DEL', chennai: 'MAA', india: 'DEL',
       };
       return known[key] ?? (/^[a-z]{3}$/i.test(key) ? key.toUpperCase() : fallback);
     };
     const arrival = isYellowstone ? 'BZN' : isTahoe ? 'RNO' : airportCode(destination, 'DST');
     const hotelName = isYellowstone ? 'Canyon Lodge & Cabins' : isTahoe ? 'Basecamp Tahoe South' : `${destination} Explorer Lodge`;
     const location = isYellowstone ? 'Canyon Village · Yellowstone' : isTahoe ? 'South Lake Tahoe · California' : destination.toLowerCase() === 'japan' ? 'Tokyo · Japan' : `Central ${destination}`;
+    const valueLocation = isYellowstone ? 'West Yellowstone' : isTahoe ? 'Stateline · Lake Tahoe' : `Arts district · ${destination}`;
     const departure = airportCode(origin, 'SFO');
     this.trip.flights = [
-      { id: 'f-primary', airline: isYellowstone ? 'United' : isTahoe ? 'Alaska' : 'Journey Air', code: isYellowstone ? 'UA 2146' : isTahoe ? 'AS 3381' : 'JO 101', departure, arrival, departureTime: '08:10', arrivalTime: '11:42', price: 390, duration: '3h 32m', stops: 0, selected: true },
-      { id: 'f-value', airline: isYellowstone ? 'Delta' : isTahoe ? 'Southwest' : 'Journey Air', code: isYellowstone ? 'DL 1862' : isTahoe ? 'WN 2674' : 'JO 205', departure, arrival, departureTime: '10:20', arrivalTime: '14:35', price: 335, duration: '4h 15m', stops: 1 },
+      { id: 'f-primary', airline: isYellowstone ? 'United' : isTahoe ? 'Alaska' : 'American Airlines', code: isTokyo ? 'AA 8400' : isYellowstone ? 'UA 2146' : isTahoe ? 'AS 3381' : 'AA 48', departure, arrival, departureTime: isTokyo ? '11:45' : isYellowstone || isTahoe ? '08:10' : '16:10', arrivalTime: isTokyo ? '16:20 +1' : isYellowstone || isTahoe ? '11:42' : '11:25 +1', price: isTokyo ? 990 : isYellowstone || isTahoe ? 390 : 845, duration: isTokyo ? '11h 35m' : isYellowstone || isTahoe ? '3h 32m' : '10h 15m', stops: 0, selected: true },
+      { id: 'f-value', airline: isTokyo ? 'Japan Airlines' : isYellowstone ? 'Delta' : isTahoe ? 'Southwest' : 'One-stop partner', code: isTokyo ? 'JL 001' : isYellowstone ? 'DL 1862' : isTahoe ? 'WN 2674' : 'BA 286', departure, arrival, departureTime: isTokyo ? '13:50' : '13:40', arrivalTime: isTokyo ? '18:25 +1' : '10:50 +1', price: isTokyo ? 935 : isYellowstone || isTahoe ? 335 : 735, duration: isTokyo ? '11h 35m' : isYellowstone || isTahoe ? '4h 15m' : '13h 10m', stops: isTokyo || isYellowstone ? 0 : 1 },
     ];
     this.trip.hotels = [
       { id: 'h-primary', name: hotelName, location, rating: 4.6, price: 290, totalPrice: 580, image: 'Primary stay', amenities: ['Central location', 'Breakfast'], selected: true },
-      { id: 'h-value', name: `${destination} Basecamp`, location, rating: 4.4, price: 220, totalPrice: 440, image: 'Value stay', amenities: ['Parking', 'Local shuttle'] },
+      { id: 'h-value', name: `${destination} Basecamp`, location: valueLocation, rating: 4.4, price: 220, totalPrice: 440, image: 'Value stay', amenities: ['Neighborhood access', 'Local shuttle'] },
     ];
-    this.recalculateBudget(390 * this.trip.request.travelers, 580);
+    const selectedFlight = this.trip.flights.find((flight) => flight.selected) ?? this.trip.flights[0];
+    const selectedHotel = this.trip.hotels.find((hotel) => hotel.selected) ?? this.trip.hotels[0];
+    this.recalculateBudget((selectedFlight?.price ?? 0) * this.trip.request.travelers, selectedHotel?.totalPrice ?? 0);
   }
 
   private recalculateBudget(flight: number, hotel: number) {
