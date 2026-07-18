@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { DemoStore } from './demo-store.js';
 import { groupHappiness } from '../services/happiness.service.js';
+import type { PlaceAttraction } from '../services/google-places.service.js';
 
 test('migrates legacy hydrated state without resetting its destination', () => {
   const store = new DemoStore();
@@ -145,4 +146,46 @@ test('voice tired replan changes only the selected Tokyo day', () => {
   const changed = updated.itinerary.find((item) => item.day === 2 && item.status === 'moved' && item.title.startsWith('Shortened ') && item.durationMins <= 60);
   assert.ok(changed);
   assert.deepEqual(updated.itinerary.filter((item) => item.day === 1).map((item) => ({ id: item.id, title: item.title, durationMins: item.durationMins })), dayOne);
+});
+
+test('preference approval never moves breakfast, lunch, or dinner out of their meal windows', () => {
+  const store = new DemoStore();
+  const request = store.getTrip().request;
+  const places: PlaceAttraction[] = Array.from({ length: 10 }, (_, index) => ({
+    id: `place-${index}`,
+    name: index % 2 ? `Restaurant ${index}` : `Attraction ${index}`,
+    address: `Tokyo stop ${index}`,
+    category: index % 2 ? 'food' : 'culture',
+  }));
+  store.updateFromRequest(request, places, 'Tokyo with culture and food for four friends');
+  store.completeSimulatedPrabhuInterview();
+  const updated = store.applyPreferenceDecision({ culture: 5, history: 5, food: 5, photography: 3, shopping: 2, nightlife: 2, nature: 3 });
+  for (const item of updated.itinerary) {
+    if (item.title.startsWith('Breakfast')) assert.equal(item.time, '08:00');
+    if (item.title.startsWith('Lunch')) assert.equal(item.time, '12:30');
+    if (item.title.startsWith('Dinner')) assert.equal(item.time, '19:00');
+  }
+});
+
+test('hydration repairs previously saved meal times without resetting the trip', () => {
+  const store = new DemoStore();
+  const saved = store.getTrip();
+  const dinner = saved.itinerary.find((item) => item.category === 'food' && item.title.toLowerCase().includes('dinner'));
+  assert.ok(dinner);
+  dinner.title = `Dinner · ${dinner.title}`;
+  dinner.time = '12:30';
+  store.hydrate(saved);
+  assert.equal(store.getTrip().itinerary.find((item) => item.id === dinner.id)?.time, '19:00');
+});
+
+test('voice end-day request skips only remaining activities on the selected day', () => {
+  const store = new DemoStore();
+  const before = store.getTrip();
+  const otherDays = before.itinerary.filter((item) => item.day !== 3).map((item) => ({ id: item.id, status: item.status }));
+  const updated = store.replan('end-day', 3);
+  const cancelled = updated.itinerary.filter((item) => item.day === 3 && !['stay', 'transport'].includes(item.category));
+  assert.ok(cancelled.length > 0);
+  assert.ok(cancelled.filter((item) => ['upcoming', 'moved'].includes(before.itinerary.find((beforeItem) => beforeItem.id === item.id)?.status ?? '')).every((item) => item.status === 'skipped'));
+  assert.deepEqual(updated.itinerary.filter((item) => item.day !== 3).map((item) => ({ id: item.id, status: item.status })), otherDays);
+  assert.match(updated.events[0].explanation, /Day 3/);
 });

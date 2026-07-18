@@ -1,6 +1,6 @@
 export type Interest = 'culture' | 'history' | 'food' | 'photography' | 'shopping' | 'nightlife' | 'nature';
 export type ItemCategory = 'stay' | 'culture' | 'food' | 'transport' | 'nature' | 'museum' | 'experience';
-export type ReplanType = 'late' | 'rain' | 'flight-delay' | 'closed' | 'tired';
+export type ReplanType = 'late' | 'rain' | 'flight-delay' | 'closed' | 'tired' | 'end-day';
 
 export interface TripRequest { origin?: string; destination: string; departureDate?: string; returnDate?: string; duration: number; travelers: number; budget: number; travelStyle: string; foodPreferences: string[]; interests: Interest[]; }
 export interface Traveler { id: string; name: string; initials: string; budgetPreference: string; activityLevel: number; pacePreference: string; foodPreference: string; interests: Record<Interest, number>; phone?: string; }

@@ -15,7 +15,7 @@ import { VocalBridgeService } from './services/voice-planner.service.js';
 import { WeatherService } from './services/weather.service.js';
 import type { PaymentOrder, TripEvent } from './types.js';
 
-const replanSchema = z.object({ type: z.enum(['late', 'rain', 'flight-delay', 'closed', 'tired']), activeDay: z.number().int().min(1).optional(), trip: z.unknown().optional() });
+const replanSchema = z.object({ type: z.enum(['late', 'rain', 'flight-delay', 'closed', 'tired', 'end-day']), activeDay: z.number().int().min(1).optional(), trip: z.unknown().optional() });
 const requestSchema = z.object({ conversation: z.string().min(3).max(1000) });
 const hydrateTripSchema = z.object({ trip: z.unknown() });
 const preferenceCollectionSchema = z.object({ adminName: z.string().min(2).max(60), adminPhone: z.string().min(7).max(30), phones: z.record(z.string(), z.string().min(7).max(30)), trip: z.unknown().optional() });

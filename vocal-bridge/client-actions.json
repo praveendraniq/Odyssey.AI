@@ -19,5 +19,21 @@
     "description": "Notify the voice agent that JourneyOS structured and saved the trip brief.",
     "direction": "app_to_agent",
     "behavior": "notify"
+  },
+  {
+    "name": "journeyos_context",
+    "description": "Supplies the current JourneyOS page, destination, dates, travelers, selected booking, and active itinerary day. Treat these facts as authoritative and do not restart planning.",
+    "direction": "app_to_agent",
+    "behavior": "notify"
+  },
+  {
+    "name": "replan_trip",
+    "description": "Update the active itinerary day after a live disruption. Payload type is end-day, tired, late, rain, closed, or flight-delay.",
+    "direction": "agent_to_app"
+  },
+  {
+    "name": "show_day",
+    "description": "Open a specific itinerary day. Payload field: day.",
+    "direction": "agent_to_app"
   }
 ]

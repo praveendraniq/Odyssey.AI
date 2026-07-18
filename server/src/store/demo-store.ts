@@ -223,6 +223,7 @@ export class DemoStore {
       skippedStopIds: migrated.itinerary.filter((item) => item.status === 'skipped').map((item) => item.id),
     };
     this.trip = migrated;
+    this.normalizeMealWindows();
     // Upgrade saved demo trips created before the labeled AA bundle inventory.
     // Real Sabre selections are never replaced because they do not use the
     // Journey Air placeholder brand.
@@ -557,10 +558,18 @@ export class DemoStore {
   }
 
   replan(type: TripEvent['type'], activeDay?: number): Trip {
+    if (type === 'end-day') {
+      const day = activeDay ?? 1;
+      const cancelled = this.trip.itinerary.filter((item) => item.day === day && ['upcoming', 'moved'].includes(item.status) && !['stay', 'transport'].includes(item.category));
+      for (const item of cancelled) item.status = 'skipped';
+      this.trip.events.unshift({ id: `event-${Date.now()}`, type, title: `Day ${day} ended early`, createdAt: new Date().toISOString(), explanation: `JourneyOS cancelled ${cancelled.length} remaining Day ${day} activities, kept the hotel return available, and left every other day unchanged.` });
+      this.updateProgress();
+      return this.getTrip();
+    }
     if (!this.trip.request.destination.toLowerCase().includes('japan')) {
       const next = this.trip.itinerary.find((item) => item.status === 'upcoming' && (!activeDay || item.day === activeDay))
         ?? this.trip.itinerary.find((item) => item.status === 'upcoming');
-      const updates: Record<TripEvent['type'], { title: string; explanation: string }> = {
+      const updates: Record<Exclude<TripEvent['type'], 'end-day'>, { title: string; explanation: string }> = {
         late: { title: 'Running late +90 minutes', explanation: `JourneyOS moved the next ${this.trip.request.destination} stop later and protected the group’s highest-priority experience.` },
         rain: { title: 'Heavy rain forecast', explanation: `JourneyOS swapped the next outdoor ${this.trip.request.destination} moment for an indoor cultural option and kept travel time low.` },
         'flight-delay': { title: 'Flight delayed by 4 hours', explanation: `JourneyOS protected late hotel check-in, shortened the arrival-day plan in ${this.trip.request.destination}, and moved the displaced priority to tomorrow.` },
@@ -583,7 +592,7 @@ export class DemoStore {
       && !['completed', 'skipped', 'closed'].includes(item.status)
       && !['stay', 'transport'].includes(item.category))
       ?? this.trip.itinerary.find((item) => item.status === 'upcoming' && !['stay', 'transport'].includes(item.category));
-    const changes: Record<TripEvent['type'], { title: string; explanation: string; mutate: () => void }> = {
+    const changes: Record<Exclude<TripEvent['type'], 'end-day'>, { title: string; explanation: string; mutate: () => void }> = {
       late: {
         title: 'Running late +90 minutes',
         explanation: 'The tea ceremony moved to Day 4 at 16:30. We kept your booked Shinkansen and removed the low-priority shopping buffer, so the group still reaches Arashiyama before closing.',
@@ -712,10 +721,18 @@ export class DemoStore {
     });
   }
 
+  private normalizeMealWindows() {
+    for (const item of this.trip.itinerary) {
+      if (item.id.startsWith('hotel-start-') && item.day > 1 && item.title.startsWith('Breakfast')) item.time = '08:00';
+      else if ((item.id.startsWith('lunch-') || item.title.startsWith('Lunch')) && item.category === 'food') item.time = '12:30';
+      else if ((item.id.startsWith('dinner-') || item.title.startsWith('Dinner')) && item.category === 'food') item.time = '19:00';
+    }
+  }
+
   private reprioritizeItinerary(scores: GroupPreference['interestScores']) {
     const scoreFor = (item: ItineraryItem) => item.category === 'food' ? scores.food : item.category === 'nature' ? (scores.nature + scores.photography) / 2 : item.category === 'culture' ? (scores.culture + scores.history) / 2 : item.category === 'museum' ? (scores.history + scores.culture) / 2 : item.category === 'experience' ? (scores.photography + scores.shopping + scores.nightlife) / 3 : 0;
     for (const day of new Set(this.trip.itinerary.map((item) => item.day))) {
-      const flexible = this.trip.itinerary.filter((item) => item.day === day && !['completed', 'skipped', 'closed'].includes(item.status) && !['stay', 'transport'].includes(item.category)).sort((a, b) => a.time.localeCompare(b.time));
+      const flexible = this.trip.itinerary.filter((item) => item.day === day && !['completed', 'skipped', 'closed'].includes(item.status) && !['stay', 'transport', 'food'].includes(item.category)).sort((a, b) => a.time.localeCompare(b.time));
       const slots = flexible.map((item) => item.time);
       const ordered = flexible.slice().sort((a, b) => scoreFor(b) - scoreFor(a) || a.time.localeCompare(b.time));
       ordered.forEach((item, index) => {
@@ -723,6 +740,7 @@ export class DemoStore {
         item.time = slots[index];
       });
     }
+    this.normalizeMealWindows();
     this.trip.itinerary.sort((a, b) => a.day - b.day || a.time.localeCompare(b.time));
   }
 

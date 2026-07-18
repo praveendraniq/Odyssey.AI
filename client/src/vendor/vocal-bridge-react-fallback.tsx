@@ -37,6 +37,8 @@ const interpretCommand = (query: string): { action: string; payload?: Record<str
   if (/\b(?:collect|create|start)\b.*\b(?:paypal|payment)\b/.test(value)) return { action: 'collect_payment', response: 'Creating the PayPal sandbox payment split.' };
   const day = value.match(/\b(?:show|open|go to)?\s*day\s+(\d{1,2})\b/)?.[1];
   if (day) return { action: 'show_day', payload: { day: Number(day) }, response: `Showing day ${day}.` };
+  if (/\b(cancel|skip|end|stop)\b.*\b(rest|remaining)\b.*\b(day|today)\b|\b(cancel|end)\b.*\btoday\b/.test(value)) return { action: 'replan_trip', payload: { type: 'end-day' }, response: 'Ending the active day early and keeping the hotel return available.' };
+  if (/\b(tired|exhausted|need a break|slow down)\b/.test(value)) return { action: 'replan_trip', payload: { type: 'tired' }, response: 'Reducing the active day while protecting its most important stop.' };
   if (/\b(?:delay|disruption|replan)\b/.test(value)) return { action: 'confirm_change', response: 'Applying the demo disruption and replanning the itinerary.' };
   return { action: 'trip_brief_ready', payload: { conversation: query }, response: 'Updating the trip from your spoken brief.' };
 };
