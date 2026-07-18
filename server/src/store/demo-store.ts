@@ -5,13 +5,12 @@ import { groupHappiness } from '../services/happiness.service.js';
 const interests = (scores: Partial<Record<Interest, number>>): Record<Interest, number> => ({
   culture: 2, history: 2, food: 2, photography: 2, shopping: 2, nightlife: 2, nature: 2, ...scores,
 });
-const isE164Phone = (value: string | undefined) => /^\+[1-9]\d{7,14}$/.test(value ?? '');
 
 const travelers: Traveler[] = [
-  { id: 't-aya', name: 'Aya', initials: 'AY', phone: '+1 (415) 555-0101', budgetPreference: 'balanced', activityLevel: 4, pacePreference: 'full', foodPreference: 'Sushi & regional food', interests: interests({ culture: 5, history: 5, food: 4, photography: 3 }) },
-  { id: 't-marcus', name: 'Marcus', initials: 'MR', phone: '+1 (415) 555-0148', budgetPreference: 'premium', activityLevel: 3, pacePreference: 'balanced', foodPreference: 'Street food', interests: interests({ food: 5, photography: 4, nightlife: 3, shopping: 3 }) },
-  { id: 't-leila', name: 'Leila', initials: 'LE', phone: '+1 (415) 555-0172', budgetPreference: 'balanced', activityLevel: 4, pacePreference: 'balanced', foodPreference: 'Vegetarian friendly', interests: interests({ culture: 5, history: 4, photography: 5, nature: 4 }) },
-  { id: 't-jon', name: 'Jon', initials: 'JO', phone: '+1 (415) 555-0196', budgetPreference: 'value', activityLevel: 3, pacePreference: 'easy', foodPreference: 'No shellfish', interests: interests({ culture: 4, food: 4, nature: 4, shopping: 1 }) },
+  { id: 't-hema', name: 'Hema', initials: 'HE', phone: '+14155550101', budgetPreference: 'balanced', activityLevel: 4, pacePreference: 'full', foodPreference: 'Sushi & regional food', interests: interests({ culture: 5, history: 5, food: 4, photography: 3 }) },
+  { id: 't-prabhu', name: 'Prabhu', initials: 'PR', phone: '+14155550148', budgetPreference: 'premium', activityLevel: 3, pacePreference: 'balanced', foodPreference: 'Street food', interests: interests({ food: 5, photography: 4, nightlife: 3, shopping: 3 }) },
+  { id: 't-deepu', name: 'Deepu', initials: 'DE', phone: '+14155550172', budgetPreference: 'balanced', activityLevel: 4, pacePreference: 'balanced', foodPreference: 'Vegetarian friendly', interests: interests({ culture: 5, history: 4, photography: 5, nature: 4 }) },
+  { id: 't-sanjay', name: 'Sanjay', initials: 'SA', phone: '+14155550196', budgetPreference: 'value', activityLevel: 3, pacePreference: 'easy', foodPreference: 'No shellfish', interests: interests({ culture: 4, food: 4, nature: 4, shopping: 1 }) },
 ];
 
 const route = (id: string, day: number, time: string, title: string, subtitle: string, category: ItineraryItem['category'], x: number, y: number, durationMins: number, travelMins: number, status: ItineraryItem['status'], weatherSensitive = false): ItineraryItem => ({
@@ -21,14 +20,14 @@ const route = (id: string, day: number, time: string, title: string, subtitle: s
 const MAX_ITINERARY_DAYS = 14;
 const NEGOTIATION_POLICY = { minimumFitGain: 5, maximumFit: 96 } as const;
 const interestLabel = (interest: Interest) => interest.replace(/\b\w/g, (letter) => letter.toUpperCase());
-const minutesFromTime = (time: string) => Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5));
 const timeFromMinutes = (minutes: number) => `${String(Math.floor(minutes / 60) % 24).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
-const DEFAULT_ADMIN = { name: 'Prabhu Siddharth', phone: '+14156290471' };
+const minutesFromTime = (time: string) => Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5));
+const DEFAULT_ADMIN = { name: 'Hema', phone: '+14155550101' };
 const adminFromBrief = (brief: string | undefined, request: Trip['request']): Traveler => {
   const nameMatch = brief?.match(/(?:my name is|i am|i'm)\s+([a-z][a-z '-]{1,50})(?=[,.]|\s+(?:and|from|with|for|my|i)|$)/i)?.[1]?.trim();
   const phoneMatch = brief?.match(/(?:my (?:phone|number) is|call me at|my phone number is)\s*(\+?[\d().\s-]{7,})/i)?.[1];
   const name = nameMatch && !/^(planning|traveling|going|calling)\b/i.test(nameMatch) ? nameMatch.replace(/\b\w/g, (letter) => letter.toUpperCase()) : DEFAULT_ADMIN.name;
-  const phone = phoneMatch ? `${phoneMatch.startsWith('+') ? '+' : '+'}${phoneMatch.replace(/\D/g, '')}` : DEFAULT_ADMIN.phone;
+  const phone = phoneMatch ? `+${phoneMatch.replace(/\D/g, '')}` : DEFAULT_ADMIN.phone;
   const preferenceScores = request.interests.reduce<Partial<Record<Interest, number>>>((scores, interest) => ({ ...scores, [interest]: 5 }), {});
   const pacePreference: Traveler['pacePreference'] = /slow|relax|easy|unhurried/i.test(request.travelStyle) ? 'easy' : /fast|packed|adventure|high-energy/i.test(request.travelStyle) ? 'full' : 'balanced';
   return {
@@ -173,7 +172,7 @@ const itineraryFromPlaces = (destination: string, duration: number, places: Plac
 const groupPreference: GroupPreference = {
   interestScores: { culture: 4.75, history: 3.5, food: 4.25, photography: 3.5, shopping: 2, nightlife: 2.25, nature: 3.25 },
   recommendedPace: 'Balanced discovery',
-  explanation: 'Kyoto leads the route because both travelers value culture, with history and food protected across the itinerary.',
+  explanation: 'Kyoto leads the route because all four travelers value culture, and three of four also ranked history or photography highly.',
 };
 
 export class DemoStore {
@@ -182,12 +181,12 @@ export class DemoStore {
   constructor() {
     this.trip = {
       schemaVersion: 2,
-      id: 'trip-japan-2026', name: 'Tokyo, together', dates: '12–16 Oct 2026',
-      request: { origin: 'San Francisco', destination: 'Tokyo', departureDate: '2026-10-12', returnDate: '2026-10-16', duration: 5, travelers: 2, budget: 4000, travelStyle: 'culture-forward, unhurried', foodPreferences: ['sushi', 'vegetarian friendly', 'street food'], interests: ['culture', 'history', 'food', 'photography'] },
-      travelers: travelers.slice(0, 2),
-      groupPreference,
+      id: 'trip-tokyo-2026', name: 'Tokyo, together', dates: '12–16 Oct 2026',
+      request: { origin: 'San Francisco', destination: 'Tokyo', departureDate: '2026-10-12', returnDate: '2026-10-16', duration: 5, travelers: 4, budget: 6000, travelStyle: 'culture-forward, unhurried', foodPreferences: ['sushi', 'vegetarian friendly', 'street food'], interests: ['culture', 'history', 'food', 'photography'] },
+      travelers: structuredClone(travelers),
+      groupPreference: structuredClone(groupPreference),
       flights: [
-        { id: 'f-jal', airline: 'Japan Airlines', code: 'JL 001', departure: 'SFO', arrival: 'HND', departureTime: '11:45', arrivalTime: '16:20 +1', price: 1120, duration: '11h 35m', stops: 0, selected: true },
+        { id: 'f-aa', airline: 'American Airlines', code: 'AA 8400', departure: 'SFO', arrival: 'HND', departureTime: '11:45', arrivalTime: '16:20 +1', price: 990, duration: '11h 35m', stops: 0, selected: true },
         { id: 'f-ana', airline: 'ANA', code: 'NH 107', departure: 'SFO', arrival: 'HND', departureTime: '13:10', arrivalTime: '17:45 +1', price: 1055, duration: '11h 35m', stops: 0 },
         { id: 'f-united', airline: 'United', code: 'UA 875', departure: 'SFO', arrival: 'HND', departureTime: '10:40', arrivalTime: '15:30 +1', price: 980, duration: '11h 50m', stops: 0 },
       ],
@@ -196,8 +195,8 @@ export class DemoStore {
         { id: 'h-nol', name: 'nol kyoto sanjo', location: 'Sanjo, Kyoto', rating: 4.7, price: 235, totalPrice: 470, image: 'nol', amenities: ['Central Kyoto', 'Family room', 'Laundry'] },
         { id: 'h-thegate', name: 'THE GATE HOTEL', location: 'Kaminarimon, Tokyo', rating: 4.6, price: 208, totalPrice: 624, image: 'Gate', amenities: ['Rooftop', 'Metro access', 'Gym'] },
       ],
-      itinerary,
-      budget: { total: 4000, spent: 3684, remaining: 316, flight: 1120 * 2, hotel: 894, activities: 310, food: 240 },
+      itinerary: structuredClone(itinerary),
+      budget: { total: 6000, spent: 5848, remaining: 152, flight: 990 * 4, hotel: 894, activities: 610, food: 384 },
       travelDna: { culture: 5, history: 5, photography: 4, shopping: 1, nightlife: 2, food: 5, learning: 'The group lingers at temples and food stops; preserve open time around cultural neighborhoods.' },
       events: [],
       progress: 28,
@@ -228,6 +227,13 @@ export class DemoStore {
       skippedStopIds: migrated.itinerary.filter((item) => item.status === 'skipped').map((item) => item.id),
     };
     this.trip = migrated;
+    this.normalizeMealWindows();
+    // Upgrade saved demo trips created before the labeled AA bundle inventory.
+    // Real Sabre selections are never replaced because they do not use the
+    // Journey Air placeholder brand.
+    if (this.trip.flights.some((flight) => flight.airline === 'Journey Air')) {
+      this.setBookingOptions(this.trip.request.destination, this.trip.request.origin);
+    }
     this.updateProgress();
   }
 
@@ -239,7 +245,6 @@ export class DemoStore {
   addTraveler(input: Pick<Traveler, 'name' | 'phone'>): Trip {
     const name = input.name.trim();
     if (name.length < 2) throw new Error('Traveler name must contain at least two characters.');
-    if (!isE164Phone(input.phone)) throw new Error('Phone numbers must use E.164 format, for example +14156290471.');
     if (this.trip.travelers.some((traveler) => traveler.name.toLowerCase() === name.toLowerCase())) throw new Error('Traveler names must be unique.');
     const id = `t-${name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}-${Date.now().toString(36)}`;
     this.trip.travelers.push({ id, name, phone: input.phone?.trim(), initials: name.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase(), budgetPreference: 'balanced', activityLevel: 3, pacePreference: 'balanced', foodPreference: 'No preference added', interests: interests({ culture: 3, food: 3, nature: 3 }) });
@@ -252,14 +257,13 @@ export class DemoStore {
     if (!traveler) throw new Error('Traveler not found.');
     const name = input.name.trim();
     if (name.length < 2 || this.trip.travelers.some((item) => item.id !== id && item.name.toLowerCase() === name.toLowerCase())) throw new Error('Use a unique traveler name with at least two characters.');
-    if (!isE164Phone(input.phone)) throw new Error('Phone numbers must use E.164 format, for example +14156290471.');
     Object.assign(traveler, { name, phone: input.phone?.trim(), initials: name.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase(), ...(input.budgetPreference ? { budgetPreference: input.budgetPreference } : {}), ...(input.activityLevel ? { activityLevel: input.activityLevel } : {}), ...(input.pacePreference ? { pacePreference: input.pacePreference } : {}), ...(input.foodPreference ? { foodPreference: input.foodPreference } : {}), ...(input.interests ? { interests: input.interests } : {}) });
     this.afterTravelerChange(`${name}'s traveler profile updated`);
     return this.getTrip();
   }
 
   removeTraveler(id: string): Trip {
-    if (this.trip.travelers.length <= 1) throw new Error('The trip admin must remain in the group.');
+    if (this.trip.travelers.length <= 2) throw new Error('A group trip must keep at least two travelers.');
     const traveler = this.trip.travelers.find((item) => item.id === id);
     if (!traveler) throw new Error('Traveler not found.');
     this.trip.travelers = this.trip.travelers.filter((item) => item.id !== id);
@@ -268,22 +272,19 @@ export class DemoStore {
   }
 
   updateTripDetails(input: { origin: string; destination: string; departureDate: string; returnDate: string }): Trip {
-    const origin = input.origin.trim();
-    const destination = input.destination.trim();
-    if (!origin || !destination) throw new Error('Origin and destination city names are required.');
     const departure = new Date(`${input.departureDate}T12:00:00Z`);
     const returning = new Date(`${input.returnDate}T12:00:00Z`);
     if (!Number.isFinite(departure.getTime()) || !Number.isFinite(returning.getTime()) || returning <= departure) throw new Error('Return date must be after the departure date.');
-    const destinationChanged = destination.toLowerCase() !== this.trip.request.destination.toLowerCase();
+    const destinationChanged = input.destination.trim().toLowerCase() !== this.trip.request.destination.toLowerCase();
     const rawDuration = Math.round((returning.getTime() - departure.getTime()) / 86_400_000) + 1;
     if (rawDuration > MAX_ITINERARY_DAYS) throw new Error(`For this demo, choose a trip of up to ${MAX_ITINERARY_DAYS} days.`);
     const duration = rawDuration;
-    this.trip.request = { ...this.trip.request, origin, destination, departureDate: input.departureDate, returnDate: input.returnDate, duration };
-    this.trip.name = `${destination}, together`;
+    this.trip.request = { ...this.trip.request, origin: input.origin.trim(), destination: input.destination.trim(), departureDate: input.departureDate, returnDate: input.returnDate, duration };
+    this.trip.name = `${input.destination.trim()}, together`;
     this.trip.dates = `${departure.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}–${returning.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}`;
     if (destinationChanged) {
-      this.trip.itinerary = itineraryFor(destination, duration);
-      this.setBookingOptions(destination);
+      this.trip.itinerary = itineraryFor(input.destination, duration);
+      this.setBookingOptions(input.destination);
       this.trip.preferenceCollection = undefined;
     }
     const selectedFlight = this.trip.flights.find((flight) => flight.selected) ?? this.trip.flights[0];
@@ -301,6 +302,7 @@ export class DemoStore {
   startStop(id: string): Trip {
     const stop = this.trip.itinerary.find((item) => item.id === id);
     if (!stop) throw new Error('That itinerary stop no longer exists.');
+    if (stop.status === 'in-progress') return this.getTrip();
     if (stop.status === 'completed' || stop.status === 'skipped') throw new Error('That stop is already finished.');
     this.trip.itinerary.forEach((item) => { if (item.status === 'in-progress') item.status = 'upcoming'; });
     stop.status = 'in-progress';
@@ -314,6 +316,7 @@ export class DemoStore {
   completeStop(id: string, actualDurationMins?: number): Trip {
     const stop = this.trip.itinerary.find((item) => item.id === id);
     if (!stop) throw new Error('That itinerary stop no longer exists.');
+    if (stop.status === 'completed') return this.getTrip();
     stop.status = 'completed';
     stop.completedAt = new Date().toISOString();
     stop.actualDurationMins = actualDurationMins ?? stop.durationMins;
@@ -339,6 +342,7 @@ export class DemoStore {
   skipStop(id: string): Trip {
     const stop = this.trip.itinerary.find((item) => item.id === id);
     if (!stop) throw new Error('That itinerary stop no longer exists.');
+    if (stop.status === 'skipped') return this.getTrip();
     stop.status = 'skipped';
     this.ensureProgress().activeStopId = undefined;
     this.recordProgressEvent(`${stop.title} skipped`, 'JourneyOS removed the stop from progress and preserved the remaining route.');
@@ -394,8 +398,6 @@ export class DemoStore {
   }): Trip {
     const collection = this.trip.preferenceCollection;
     if (!collection) throw new Error('Start preference calls before submitting a call result.');
-    // The context tool provides the opaque ID, but accepting a unique name as
-    // a fallback keeps an outbound voice demo resilient to speech/tool casing.
     const traveler = this.trip.travelers.find((item) => item.id === input.travelerId)
       ?? this.trip.travelers.find((item) => item.name.toLowerCase() === input.travelerId.trim().toLowerCase());
     const call = traveler ? collection.calls.find((item) => item.travelerId === traveler.id) : undefined;
@@ -422,12 +424,7 @@ export class DemoStore {
       if (/museum|history|temple|culture|art/.test(preferenceText)) { nextInterests.culture = 5; nextInterests.history = Math.max(nextInterests.history, 4); }
       if (/photo|photography|view|scenic/.test(preferenceText)) nextInterests.photography = 5;
       if (/nature|hike|park|beach/.test(preferenceText)) nextInterests.nature = 5;
-      Object.assign(traveler, {
-        pacePreference: pace,
-        activityLevel: pace === 'easy' ? 2 : pace === 'full' ? 4 : 3,
-        ...(input.food ? { foodPreference: input.food } : {}),
-        interests: nextInterests,
-      });
+      Object.assign(traveler, { pacePreference: pace, activityLevel: pace === 'easy' ? 2 : pace === 'full' ? 4 : 3, ...(input.food ? { foodPreference: input.food } : {}), interests: nextInterests });
       this.afterTravelerChange(`${traveler.name}'s voice preferences were collected`);
     } else {
       this.recalculateHappiness();
@@ -443,27 +440,34 @@ export class DemoStore {
 
   startNegotiation(travelerId: string, source: PreferenceCollection['source'] = 'mock'): Trip {
     const traveler = this.trip.travelers.find((item) => item.id === travelerId);
+    if (!traveler || traveler === this.trip.travelers[0]) throw new Error('Choose one friend to negotiate with.');
     const admin = this.trip.travelers[0];
-    if (!traveler || traveler.id === admin?.id) throw new Error('Choose one friend to negotiate with.');
     const knownProfiles = this.trip.travelers.filter((item) => item.id !== traveler.id && item.id !== admin?.id).slice(0, 2);
     const counterpart = knownProfiles[0] ?? admin;
     if (!counterpart) throw new Error('Add another traveler before starting a negotiation.');
+    const priorities = (Object.entries(traveler.interests) as Array<[Interest, number]>).sort((left, right) => right[1] - left[1]);
     const availableDays = [...new Set(this.trip.itinerary.map((item) => item.day))].sort((left, right) => left - right);
     const affectedDay = availableDays.find((day) => day >= 2) ?? availableDays[0] ?? 1;
-    const fit = groupHappiness(this.trip.travelers, this.trip.itinerary, this.trip.request.duration);
-    const priorities = (Object.entries(traveler.interests) as Array<[Interest, number]>).sort((left, right) => right[1] - left[1]);
-    const id = `negotiation-${Date.now()}`;
-    const waiting = `Waiting to hear ${traveler.name}'s live priority before negotiating the plan.`;
+    const agreementId = `negotiation-${Date.now()}`;
+    const currentFit = groupHappiness(this.trip.travelers, this.trip.itinerary, this.trip.request.duration);
+    const beforeHappiness = currentFit.groupHappiness;
+    const pendingConflict = `Waiting to hear ${traveler.name}'s live priority before detecting a conflict.`;
     this.trip.preferenceCollection = {
       adminName: admin?.name ?? 'Trip admin', adminWeight: 1.5, source, status: 'pending',
       calls: [
-        ...knownProfiles.map((profile) => ({ travelerId: profile.id, name: profile.name, phone: profile.phone ?? '', status: 'completed' as const, happiness: fit.groupHappiness, topPriorities: (Object.entries(profile.interests) as Array<[Interest, number]>).sort((left, right) => right[1] - left[1]).slice(0, 2).map(([interest]) => interestLabel(interest)), summary: `${profile.name}'s saved preferences are ready for comparison.`, compromise: 'Saved context for negotiation.' })),
-        { travelerId: traveler.id, name: traveler.name, phone: traveler.phone ?? '', status: source === 'vocal-bridge' ? 'dialing' : 'queued', happiness: fit.groupHappiness, topPriorities: priorities.slice(0, 2).map(([interest]) => interestLabel(interest)), summary: waiting, compromise: 'Waiting for the traveler to speak.' },
+        ...knownProfiles.map((profile) => ({ travelerId: profile.id, name: profile.name, phone: profile.phone ?? '', status: 'completed' as const, happiness: beforeHappiness, topPriorities: (Object.entries(profile.interests) as Array<[Interest, number]>).sort((left, right) => right[1] - left[1]).slice(0, 2).map(([interest]) => interestLabel(interest)), summary: `${profile.name}'s preferences are already available for live comparison.`, compromise: 'Saved context for the live negotiation.' })),
+        { travelerId: traveler.id, name: traveler.name, phone: traveler.phone ?? '', status: source === 'vocal-bridge' ? 'dialing' : 'queued', happiness: beforeHappiness, topPriorities: priorities.slice(0, 2).map(([interest]) => interestLabel(interest)), summary: `JourneyOS will hear ${traveler.name}'s live preference, compare it with the saved profiles, and negotiate only if a conflict emerges.`, compromise: 'Waiting for the traveler to speak.' },
       ],
-      negotiation: waiting,
-      approvalSummary: `${knownProfiles.length} saved profile${knownProfiles.length === 1 ? '' : 's'} loaded. No preference conflict is assumed.`,
-      agreement: { id, travelerId: traveler.id, travelerName: traveler.name, counterpartId: counterpart.id, counterpartName: counterpart.name, conflict: waiting, rationale: 'JourneyOS will compare the live answer with saved traveler constraints.', proposal: 'No compromise has been proposed yet.', accepted: false, status: 'calling', affectedDay, beforeHappiness: fit.groupHappiness, afterHappiness: fit.groupHappiness, agreedChanges: [], preview: [], itineraryChanges: [], dialogue: [] },
+      negotiation: pendingConflict,
+      approvalSummary: `${knownProfiles.length} preference profile${knownProfiles.length === 1 ? '' : 's'} loaded. The live conflict has not been assumed.`,
+      agreement: {
+        id: agreementId, travelerId: traveler.id, travelerName: traveler.name, counterpartId: counterpart.id, counterpartName: counterpart.name, conflict: pendingConflict,
+        rationale: `JourneyOS will compare ${traveler.name}'s spoken request with the saved group profiles before naming any conflict.`,
+        proposal: 'No compromise has been proposed yet.', accepted: false, status: 'calling', affectedDay, beforeHappiness, afterHappiness: beforeHappiness,
+        agreedChanges: [], preview: [], itineraryChanges: [], dialogue: [],
+      },
     };
+    this.trip.events.unshift({ id: `negotiation-start-${Date.now()}`, type: 'tired', title: `AI Negotiator called ${traveler.name}`, createdAt: new Date().toISOString(), explanation: pendingConflict });
     return this.getTrip();
   }
 
@@ -471,41 +475,57 @@ export class DemoStore {
     const collection = this.trip.preferenceCollection;
     const agreement = collection?.agreement;
     if (!collection || !agreement || agreement.travelerId !== input.travelerId) throw new Error('Start this negotiation before submitting its result.');
+    const call = collection.calls.find((item) => item.travelerId === input.travelerId);
+    if (!call) throw new Error('The traveler is not part of this negotiation.');
     const traveler = this.trip.travelers.find((item) => item.id === input.travelerId);
     const savedProfiles = this.trip.travelers.filter((item) => item.id !== input.travelerId && item.id !== this.trip.travelers[0]?.id);
-    const spoken = (input.statedPreference ?? input.travelerResponse).trim();
-    const counterpart = this.trip.travelers.find((item) => item.id === input.counterpartId) ?? savedProfiles[0] ?? this.trip.travelers[0];
-    if (!traveler || !counterpart) throw new Error('The active negotiation needs the live traveler and a saved profile.');
+    const spokenPreference = (input.statedPreference ?? input.travelerResponse).trim();
+    const counterpart = this.trip.travelers.find((item) => item.id === input.counterpartId)
+      ?? (/night|late|party|bar|club/i.test(spokenPreference) ? savedProfiles.find((item) => /vegetarian|vegan|allergy|shellfish|gluten/i.test(item.foodPreference) || item.pacePreference === 'easy') : undefined)
+      ?? (/packed|many|fast|adventure|hike/i.test(spokenPreference) ? savedProfiles.find((item) => item.pacePreference === 'easy') : undefined)
+      ?? savedProfiles[0]
+      ?? this.trip.travelers[0];
+    if (!traveler || !counterpart) throw new Error('The active negotiation needs both a caller and a saved traveler profile.');
     const constraint = counterpart.foodPreference && counterpart.foodPreference !== 'No preference added' ? counterpart.foodPreference.toLowerCase() : `${counterpart.pacePreference} pace`;
-    const experience = /night|party|bar|club/i.test(spoken) ? 'nightlife' : /food|dinner|lunch|restaurant|vegan|vegetarian/i.test(spoken) ? 'food' : /photo/i.test(spoken) ? 'photography' : /shop|market|anime/i.test(spoken) ? 'shopping' : /hike|nature|park/i.test(spoken) ? 'nature' : 'requested experience';
+    const requestedExperience = /night|party|bar|club/i.test(spokenPreference) ? 'nightlife' : /food|dinner|lunch|restaurant|vegan|vegetarian/i.test(spokenPreference) ? 'food' : /photo/i.test(spokenPreference) ? 'photography' : /shop|market/i.test(spokenPreference) ? 'shopping' : /hike|nature|park/i.test(spokenPreference) ? 'nature' : 'requested experience';
+    const destination = this.trip.request.destination;
     const affectedDay = Math.min(Math.max(1, input.affectedDay ?? agreement.affectedDay), this.trip.request.duration);
-    const existingTimes = this.trip.itinerary.filter((item) => item.day === affectedDay && !['stay', 'transport'].includes(item.category)).map((item) => minutesFromTime(item.time));
-    const sharedTime = timeFromMinutes(Math.min(19 * 60, Math.max(17 * 60, (existingTimes.length ? Math.max(...existingTimes) : 16 * 60) + 90)));
-    const changes = input.itineraryChanges?.length ? input.itineraryChanges.map((change, index) => ({ ...change, id: `${agreement.id}-change-${index + 1}` })) : [
-      { id: `${agreement.id}-shared`, time: sharedTime, title: /vegetarian/i.test(constraint) ? 'Vegetarian group dinner' : /vegan/i.test(constraint) ? 'Vegan group dinner' : 'Shared group activity', subtitle: `${this.trip.request.destination} · protects ${counterpart.name}'s needs`, category: 'food' as const },
-      { id: `${agreement.id}-optional`, time: timeFromMinutes(minutesFromTime(sharedTime) + 120), title: `Optional ${experience}`, subtitle: `${this.trip.request.destination} · protects ${traveler.name}'s priority`, category: 'experience' as const },
+    const dayTimes = this.trip.itinerary.filter((item) => item.day === affectedDay && !['stay', 'transport'].includes(item.category)).map((item) => minutesFromTime(item.time)).filter((time) => time < 20 * 60);
+    const lastCoreTime = dayTimes.length ? Math.max(...dayTimes) : 16 * 60;
+    const sharedTime = timeFromMinutes(Math.min(19 * 60, Math.max(17 * 60, lastCoreTime + 120)));
+    const optionalTime = timeFromMinutes(minutesFromTime(sharedTime) + 150);
+    const generatedChanges = input.itineraryChanges?.length ? input.itineraryChanges.map((change, index) => ({ ...change, id: `${agreement.id}-change-${index + 1}` })) : [
+      { id: `${agreement.id}-shared`, time: sharedTime, title: /vegetarian/i.test(constraint) ? 'Vegetarian group dinner' : /vegan/i.test(constraint) ? 'Vegan group dinner' : 'Shared group activity', subtitle: `${destination} · protects ${counterpart.name}'s constraint`, category: 'food' as const },
+      { id: `${agreement.id}-optional`, time: optionalTime, title: `Optional ${requestedExperience}`, subtitle: `${destination} · protects ${traveler.name}'s live request`, category: 'experience' as const },
     ];
-    const fit = groupHappiness(this.trip.travelers, this.trip.itinerary, this.trip.request.duration);
-    const after = Math.min(NEGOTIATION_POLICY.maximumFit, fit.groupHappiness + Math.max(NEGOTIATION_POLICY.minimumFitGain, Math.ceil(fit.fairnessGap / 2)));
+    const currentFit = groupHappiness(this.trip.travelers, this.trip.itinerary, this.trip.request.duration);
+    const beforeHappiness = currentFit.groupHappiness;
+    const afterHappiness = Math.min(NEGOTIATION_POLICY.maximumFit, beforeHappiness + Math.max(NEGOTIATION_POLICY.minimumFitGain, Math.ceil(currentFit.fairnessGap / 2)));
     agreement.counterpartId = counterpart.id;
     agreement.counterpartName = counterpart.name;
-    agreement.conflict = input.conflict?.trim() || `${traveler.name}'s ${experience} priority needs to be balanced with ${counterpart.name}'s ${constraint} requirement.`;
-    agreement.rationale = input.rationale?.trim() || `JourneyOS can protect both needs by keeping the shared constraint first and making the additional experience optional.`;
-    agreement.proposal = input.proposal?.trim() || `${changes[0].title} at ${changes[0].time}, followed by ${changes[1]?.title.toLowerCase()} at ${changes[1]?.time}.`;
+    agreement.conflict = input.conflict?.trim() || `${traveler.name}'s live request for ${requestedExperience} competes with ${counterpart.name}'s ${constraint} constraint.`;
+    agreement.rationale = input.rationale?.trim() || `${traveler.name} asked for “${spokenPreference},” while the saved profile says ${counterpart.name} needs ${constraint}. Both can be protected with a shared-first, optional-after sequence.`;
+    agreement.proposal = input.proposal?.trim() || `Schedule ${generatedChanges[0].title.toLowerCase()} at ${generatedChanges[0].time}, then keep ${requestedExperience} optional from ${generatedChanges[1]?.time ?? optionalTime}.`;
     agreement.affectedDay = affectedDay;
-    agreement.beforeHappiness = fit.groupHappiness;
-    agreement.afterHappiness = after;
-    agreement.itineraryChanges = changes;
-    agreement.agreedChanges = input.agreedChanges?.length ? input.agreedChanges : changes.map((change) => `${change.title} at ${change.time}`);
-    agreement.preview = changes.map((change) => ({ label: change.category === 'food' ? 'Shared plan' : 'Personal priority', before: agreement.conflict, after: `${change.time} ${change.title}` }));
-    agreement.accepted = input.accepted;
-    agreement.status = input.accepted ? 'accepted' : 'declined';
-    agreement.travelerResponse = input.travelerResponse;
-    agreement.dialogue = input.dialogue?.length ? input.dialogue : [{ speaker: 'traveler', text: spoken }, { speaker: 'agent', text: `${agreement.rationale} ${agreement.proposal}` }, { speaker: 'traveler', text: input.travelerResponse }];
+    agreement.beforeHappiness = beforeHappiness;
+    agreement.afterHappiness = afterHappiness;
+    agreement.itineraryChanges = generatedChanges;
+    agreement.agreedChanges = input.agreedChanges?.length ? input.agreedChanges : generatedChanges.map((change) => `${change.title} at ${change.time}`);
+    agreement.preview = generatedChanges.map((change) => ({ label: change.category === 'food' ? 'Shared plan' : 'Traveler request', before: agreement.conflict, after: `${change.time} ${change.title}` }));
     collection.negotiation = agreement.conflict;
-    collection.approvalSummary = input.accepted ? `Preference priorities negotiated. Group plan fit rises from ${fit.groupHappiness}% to ${after}% after admin approval.` : 'The traveler declined this option; the itinerary remains unchanged.';
-    const call = collection.calls.find((item) => item.travelerId === traveler.id);
-    if (call) Object.assign(call, { status: 'completed' as const, summary: input.accepted ? `${traveler.name} accepted the proposed balance.` : `${traveler.name} requested another option.`, compromise: input.accepted ? agreement.proposal : 'No agreement yet.', happiness: input.accepted ? after : fit.groupHappiness, dialogue: agreement.dialogue });
+    const dialogue = input.dialogue?.length ? input.dialogue : [
+      { speaker: 'agent' as const, text: `Hi ${agreement.travelerName}. ${collection.adminName} is organizing ${this.trip.request.destination}, and I already know the group's priorities. I need your help resolving one conflict.` },
+      { speaker: 'traveler' as const, text: spokenPreference },
+      { speaker: 'agent' as const, text: `${agreement.rationale} ${agreement.proposal} Would that work for you?` },
+      { speaker: 'traveler' as const, text: input.travelerResponse },
+      { speaker: 'agent' as const, text: input.accepted ? `Perfect. I found a compromise that protects both your priority and ${agreement.counterpartName}'s constraint. I'll send it to ${collection.adminName} for review.` : `Understood. I won't change the itinerary; ${collection.adminName} can review another option.` },
+    ];
+    Object.assign(call, { status: 'completed' as const, summary: input.accepted ? `${agreement.travelerName} accepted the proposed trade with ${agreement.counterpartName}.` : `${agreement.travelerName} declined the proposed trade.`, compromise: input.accepted ? agreement.proposal : 'No agreement yet.', happiness: input.accepted ? agreement.afterHappiness : agreement.beforeHappiness, dialogue });
+    Object.assign(agreement, { accepted: input.accepted, status: input.accepted ? 'accepted' as const : 'declined' as const, travelerResponse: input.travelerResponse, dialogue });
+    collection.approvalSummary = input.accepted ? `Conflict resolved. Group plan fit rises from ${agreement.beforeHappiness}% to ${agreement.afterHappiness}% after admin approval.` : 'The traveler declined this proposal; no itinerary change was made.';
+    const currentGap = this.trip.groupPreference.fairnessGap ?? 0;
+    Object.assign(this.trip.groupPreference, { groupHappiness: input.accepted ? agreement.afterHappiness : agreement.beforeHappiness, averageHappiness: input.accepted ? agreement.afterHappiness : agreement.beforeHappiness, fairnessGap: input.accepted ? Math.max(0, currentGap - (agreement.afterHappiness - agreement.beforeHappiness)) : currentGap, fairnessPenalty: 0, explanation: input.accepted ? agreement.proposal : agreement.conflict });
+    this.trip.events.unshift({ id: `negotiation-result-${Date.now()}`, type: 'tired', title: input.accepted ? 'Conflict resolved by voice' : 'Negotiation needs admin review', createdAt: new Date().toISOString(), explanation: collection.approvalSummary });
     return this.getTrip();
   }
 
@@ -513,57 +533,65 @@ export class DemoStore {
     const collection = this.trip.preferenceCollection;
     const agreement = collection?.agreement;
     if (!collection || !agreement?.accepted) throw new Error('An accepted negotiation is required before changing the itinerary.');
-    const additions = agreement.itineraryChanges.map((change, index) => route(change.id, agreement.affectedDay, change.time, change.title, change.subtitle, change.category, 62 + index * 10, 50 + index * 12, index === 0 ? 90 : 75, index === 0 ? 25 : 18, 'moved'));
-    this.trip.itinerary = this.trip.itinerary.filter((item) => !additions.some((addition) => addition.id === item.id));
-    this.trip.itinerary.push(...additions);
+    const changes = agreement.itineraryChanges.map((change, index) => route(change.id, agreement.affectedDay, change.time, change.title, change.subtitle, change.category, 64 + index * 8, 54 + index * 12, index === 0 ? 90 : 75, index === 0 ? 25 : 18, 'moved'));
+    this.trip.itinerary = this.trip.itinerary.filter((item) => !changes.some((change) => change.id === item.id));
+    this.trip.itinerary.push(...changes);
     this.trip.itinerary.sort((left, right) => left.day - right.day || left.time.localeCompare(right.time));
     agreement.status = 'applied';
     collection.status = 'approved';
-    collection.approvalSummary = `${collection.adminName} approved the negotiated priorities for Day ${agreement.affectedDay}.`;
-    this.recalculateHappiness();
+    collection.approvalSummary = `${collection.adminName} approved the negotiated trade. Day ${agreement.affectedDay} now includes ${agreement.agreedChanges.join(' and ')}.`;
+    this.trip.events.unshift({ id: `negotiation-applied-${Date.now()}`, type: 'tired', title: `Negotiated agreement applied to Day ${agreement.affectedDay}`, createdAt: new Date().toISOString(), explanation: collection.approvalSummary });
     return this.getTrip();
   }
 
   restoreStop(id: string): Trip {
     const stop = this.trip.itinerary.find((item) => item.id === id);
     if (!stop) throw new Error('That itinerary stop no longer exists.');
+    if (stop.status === 'upcoming' && !stop.completedAt && !stop.startedAt) return this.getTrip();
     const progress = this.ensureProgress();
     if (progress.activeStopId === stop.id) progress.activeStopId = undefined;
     if (typeof stop.varianceMins === 'number') progress.scheduleVarianceMins -= stop.varianceMins;
-    Object.assign(stop, { status: 'upcoming' as const });
+    stop.status = 'upcoming';
     delete stop.startedAt;
     delete stop.completedAt;
     delete stop.actualDurationMins;
     delete stop.varianceMins;
+    this.recordProgressEvent(`${stop.title} restored`, 'The stop is active again and can be completed, skipped, or changed by voice.');
     this.updateProgress();
     return this.getTrip();
   }
 
   applyItineraryCommand(query: string, activeDay: number): { trip: Trip; message: string; affectedStopIds: string[] } {
     const spoken = query.toLowerCase().trim();
-    const dayItems = this.trip.itinerary.filter((item) => item.day === activeDay).sort((left, right) => left.time.localeCompare(right.time));
+    const dayItems = this.trip.itinerary.filter((item) => item.day === activeDay).sort((a, b) => a.time.localeCompare(b.time));
     if (!dayItems.length) throw new Error(`Day ${activeDay} has no itinerary stops.`);
+
     const ordinal = spoken.match(/(?:place|stop|activity|item)\s*(\d+)/i)?.[1];
-    const ignored = new Set(['mark', 'complete', 'completed', 'cancel', 'remove', 'restore', 'undo', 'activity', 'place', 'stop', 'today', 'evening', 'morning', 'afternoon']);
-    const words = spoken.split(/[^a-z0-9]+/).filter((word) => word.length > 3 && !ignored.has(word));
+    const targetWords = spoken.split(/[^a-z0-9]+/).filter((word) => word.length > 3 && !['mark', 'complete', 'completed', 'cancel', 'remove', 'restore', 'undo', 'activity', 'place', 'stop', 'today', 'evening', 'morning', 'afternoon'].includes(word));
     const unfinished = dayItems.filter((item) => !['completed', 'skipped'].includes(item.status));
     let targets = ordinal ? dayItems.slice(Math.max(0, Number(ordinal) - 1), Number(ordinal)) : [];
     if (!targets.length && /\b(evening|tonight)\b/.test(spoken)) targets = dayItems.filter((item) => Number(item.time.slice(0, 2)) >= 17 && !['stay', 'transport'].includes(item.category));
-    if (!targets.length && /\bmorning\b/.test(spoken)) targets = dayItems.filter((item) => Number(item.time.slice(0, 2)) < 12 && !['stay', 'transport'].includes(item.category));
-    if (!targets.length && words.length) {
-      const ranked = dayItems.map((item) => ({ item, score: words.filter((word) => `${item.title} ${item.subtitle}`.toLowerCase().includes(word)).length })).sort((left, right) => right.score - left.score);
-      if (ranked[0]?.score) targets = [ranked[0].item];
+    if (!targets.length && /\b(morning)\b/.test(spoken)) targets = dayItems.filter((item) => Number(item.time.slice(0, 2)) < 12 && !['stay', 'transport'].includes(item.category));
+    if (!targets.length && /\b(afternoon)\b/.test(spoken)) targets = dayItems.filter((item) => { const hour = Number(item.time.slice(0, 2)); return hour >= 12 && hour < 17 && !['stay', 'transport'].includes(item.category); });
+    if (!targets.length && /\b(rest|remaining)\b/.test(spoken)) targets = unfinished.filter((item) => !['stay', 'transport'].includes(item.category));
+    if (!targets.length && targetWords.length) {
+      const scored = dayItems.map((item) => ({ item, score: targetWords.filter((word) => `${item.title} ${item.subtitle}`.toLowerCase().includes(word)).length })).sort((a, b) => b.score - a.score);
+      if (scored[0]?.score) targets = [scored[0].item];
     }
     if (!targets.length) targets = [this.trip.itinerary.find((item) => item.id === this.ensureProgress().activeStopId && item.day === activeDay) ?? unfinished[0] ?? dayItems[0]];
-    const action = /\b(undo|restore|reopen|not done|uncomplete)\b/.test(spoken) ? 'restore'
-      : /\b(saw|visited|done|finished|complete|completed)\b/.test(spoken) ? 'complete'
-        : /\b(start|begin|arrived|here now)\b/.test(spoken) ? 'start'
-          : /\b(cancel|skip|remove|drop)\b/.test(spoken) ? 'skip'
-            : /\b(late|delay|delayed|behind|stuck)\b/.test(spoken) ? 'delay' : undefined;
-    if (!action) throw new Error('Say what to change, for example “mark stop 2 complete” or “delay Day 1 by 30 minutes”.');
+
+    let action: 'complete' | 'restore' | 'start' | 'skip' | 'delay';
+    if (/\b(undo|restore|reopen|not done|uncomplete)\b/.test(spoken)) action = 'restore';
+    else if (/\b(saw|visited|done|finished|complete|completed)\b/.test(spoken)) action = 'complete';
+    else if (/\b(start|begin|arrived|here now)\b/.test(spoken)) action = 'start';
+    else if (/\b(cancel|skip|remove|drop)\b/.test(spoken)) action = 'skip';
+    else if (/\b(late|delay|delayed|behind|stuck)\b/.test(spoken)) action = 'delay';
+    else throw new Error('Say what to change, for example “mark place 2 complete”, “undo place 2”, or “cancel the evening activity”.');
+
     if (action === 'delay') {
       const minutes = Math.min(240, Math.max(1, Number(spoken.match(/(\d+)\s*(?:minute|min)/)?.[1] ?? 30)));
-      return { trip: this.reportDelay(minutes), message: `Day ${activeDay} is updated for a ${minutes}-minute delay.`, affectedStopIds: targets.map((item) => item.id) };
+      const trip = this.reportDelay(minutes);
+      return { trip, message: `Day ${activeDay} is updated for a ${minutes}-minute delay.`, affectedStopIds: targets.map((item) => item.id) };
     }
     for (const target of targets) {
       if (action === 'complete') this.completeStop(target.id);
@@ -575,11 +603,11 @@ export class DemoStore {
     return { trip: this.getTrip(), message: `${targets.map((item) => item.title).join(', ')} ${verb}.`, affectedStopIds: targets.map((item) => item.id) };
   }
 
-  completeSimulatedMayaInterview(): Trip {
-    const maya = this.trip.travelers.find((traveler) => traveler.name === 'Maya') ?? this.trip.travelers[1];
+  completeSimulatedPrabhuInterview(): Trip {
+    const maya = this.trip.travelers.find((traveler) => traveler.name === 'Prabhu') ?? this.trip.travelers[1];
     if (!maya) throw new Error('Add a traveler before starting the preference interview.');
     Object.assign(maya, {
-      name: 'Maya', initials: 'MY', pacePreference: 'balanced' as const, foodPreference: 'Street food',
+      name: 'Prabhu', initials: 'PR', pacePreference: 'balanced' as const, foodPreference: 'Street food',
       interests: interests({ culture: 1, history: 1, food: 5, photography: 3, shopping: 5, nightlife: 3, nature: 2 }),
     });
     const shrine = this.trip.itinerary.find((item) => item.id === 'i-meiji');
@@ -600,8 +628,12 @@ export class DemoStore {
     return this.getTrip();
   }
 
-  startMayaPreferenceCall(): Trip {
-    const maya = this.trip.travelers.find((traveler) => traveler.name === 'Maya') ?? this.trip.travelers[1];
+  completeSimulatedMayaInterview(): Trip {
+    return this.completeSimulatedPrabhuInterview();
+  }
+
+  startPrabhuPreferenceCall(): Trip {
+    const maya = this.trip.travelers.find((traveler) => traveler.name === 'Prabhu') ?? this.trip.travelers[1];
     if (!maya) throw new Error('Add a traveler before starting the preference interview.');
     this.trip.preferenceCollection = {
       adminName: this.trip.travelers[0]?.name ?? 'Trip admin', adminWeight: 1.5, source: 'vocal-bridge', status: 'pending',
@@ -658,33 +690,21 @@ export class DemoStore {
 
   updateFromRequest(request: Trip['request'], places: PlaceAttraction[] = [], briefTranscript?: string): Trip {
     const hadPriorBrief = Boolean(this.trip.briefTranscript);
-    const origin = request.origin?.trim();
-    const destination = request.destination.trim();
-    if (!origin || !destination) throw new Error('The voice brief must contain valid origin and destination city names.');
     const dates = normalizedTripDates(request.departureDate ?? this.trip.request.departureDate, request.returnDate, request.duration);
-    const normalizedRequest = { ...this.trip.request, ...request, origin, destination, ...dates };
+    const normalizedRequest = { ...this.trip.request, ...request, ...dates };
     this.trip.request = normalizedRequest;
     const { departureDate, returnDate, duration } = normalizedRequest;
     const departure = new Date(`${departureDate}T12:00:00Z`);
     const returning = new Date(`${returnDate}T12:00:00Z`);
     this.trip.dates = `${departure.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}–${returning.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}`;
-    // The organizer's preferences must refresh from every confirmed voice
-    // brief, not only the first one. Keep an explicitly saved name/phone while
-    // updating the pace, food needs and interests that drive the itinerary.
-    const briefAdmin = adminFromBrief(briefTranscript, normalizedRequest);
-    if (!hadPriorBrief) this.trip.travelers = [briefAdmin];
-    else if (this.trip.travelers[0]) {
-      const currentAdmin = this.trip.travelers[0];
-      const nameWasProvided = Boolean(briefTranscript?.match(/(?:my name is|i am|i'm)\s+[a-z]/i));
-      const phoneWasProvided = Boolean(briefTranscript?.match(/(?:my (?:phone|number) is|call me at|my phone number is)\s*\+?[\d().\s-]{7,}/i));
-      Object.assign(currentAdmin, {
-        ...(nameWasProvided || currentAdmin.name === 'Aya' ? { name: briefAdmin.name, initials: briefAdmin.initials } : {}),
-        ...(phoneWasProvided || currentAdmin.phone === '+1 (415) 555-0101' ? { phone: briefAdmin.phone } : {}),
-        pacePreference: briefAdmin.pacePreference,
-        activityLevel: briefAdmin.activityLevel,
-        foodPreference: briefAdmin.foodPreference,
-        interests: briefAdmin.interests,
-      });
+    // Partner voice flow: the first traveler is the organizer inferred from
+    // the brief; the remaining slots are friends who can receive preference calls.
+    if (!hadPriorBrief) {
+      const inferredAdmin = adminFromBrief(briefTranscript, normalizedRequest);
+      const existing = this.trip.travelers;
+      this.trip.travelers = existing.length
+        ? [{ ...existing[0], ...inferredAdmin, id: existing[0].id, phone: inferredAdmin.phone ?? existing[0].phone }, ...existing.slice(1)]
+        : [inferredAdmin];
     }
     this.trip.travelers = this.trip.travelers.slice(0, Math.max(1, normalizedRequest.travelers));
     while (this.trip.travelers.length < normalizedRequest.travelers) {
@@ -716,7 +736,7 @@ export class DemoStore {
       const updates: Record<TripEvent['type'], { title: string; explanation: string }> = {
         late: { title: 'Running late +90 minutes', explanation: `JourneyOS moved the next ${this.trip.request.destination} stop later and protected the group’s highest-priority experience.` },
         rain: { title: 'Heavy rain forecast', explanation: `JourneyOS swapped the next outdoor ${this.trip.request.destination} moment for an indoor cultural option and kept travel time low.` },
-        'flight-delay': { title: 'Flight delayed by 2 hours', explanation: `JourneyOS shortened the arrival-day plan in ${this.trip.request.destination} and held the next confirmed experience.` },
+        'flight-delay': { title: 'Flight delayed by 4 hours', explanation: `JourneyOS protected late hotel check-in, shortened the arrival-day plan in ${this.trip.request.destination}, and moved the displaced priority to tomorrow.` },
         closed: { title: 'Attraction closed', explanation: `JourneyOS replaced the unavailable ${this.trip.request.destination} stop with a nearby option that matches the group’s interests.` },
         tired: { title: 'Traveler energy is low', explanation: `JourneyOS reduced walking in ${this.trip.request.destination} while preserving one meaningful group highlight.` },
       };
@@ -729,40 +749,57 @@ export class DemoStore {
       }
       const update = updates[type];
       this.trip.events.unshift({ id: `event-${Date.now()}`, type, title: update.title, createdAt: new Date().toISOString(), explanation: update.explanation });
+      this.normalizeMealWindows();
+      this.trip.itinerary.sort((left, right) => left.day - right.day || left.time.localeCompare(right.time));
       return this.getTrip();
     }
+    const activeFlexibleStop = () => this.trip.itinerary.find((item) =>
+      item.day === activeDay
+      && !['completed', 'skipped', 'closed'].includes(item.status)
+      && !['stay', 'transport'].includes(item.category))
+      ?? this.trip.itinerary.find((item) => item.status === 'upcoming' && !['stay', 'transport'].includes(item.category));
     const changes: Record<TripEvent['type'], { title: string; explanation: string; mutate: () => void }> = {
       late: {
         title: 'Running late +90 minutes',
         explanation: 'The tea ceremony moved to Day 4 at 16:30. We kept your booked Shinkansen and removed the low-priority shopping buffer, so the group still reaches Arashiyama before closing.',
-        mutate: () => this.move('i-tea', 4, '16:30', 'moved'),
+        mutate: () => {
+          if (!activeDay) { this.move('i-tea', 4, '16:30', 'moved'); return; }
+          const item = activeFlexibleStop();
+          if (!item) return;
+          const [hour, minute] = item.time.split(':').map(Number);
+          const shifted = hour * 60 + minute + 90;
+          Object.assign(item, { time: `${String(Math.floor(shifted / 60) % 24).padStart(2, '0')}:${String(shifted % 60).padStart(2, '0')}`, status: 'moved' as const });
+        },
       },
       rain: {
         title: 'Heavy rain forecast',
-        explanation: 'Outdoor Arashiyama moved to the dry Day 5 morning. Kyoto National Museum replaces it on Day 3 because it is 18 minutes from the hotel and matches the group’s culture and history priorities.',
+        explanation: `JourneyOS replaced an outdoor stop on Day ${activeDay ?? 1} with an indoor alternative, preserving the group’s interests and the selected day’s route.`,
         mutate: () => {
-          this.move('i-arashiyama', 5, '14:00', 'moved');
-          if (!this.trip.itinerary.some((item) => item.id === 'i-museum')) this.trip.itinerary.push(route('i-museum', 3, '13:00', 'Kyoto National Museum', 'Higashiyama · Kyoto', 'museum', 115, 18, 51, 45, 'moved'));
+          const item = activeFlexibleStop();
+          if (item) Object.assign(item, { title: `Indoor alternative · ${item.title}`, category: 'museum' as const, weatherSensitive: false, status: 'moved' as const });
         },
       },
       'flight-delay': {
-        title: 'Flight delayed by 2 hours',
-        explanation: 'Hotel check-in was held and the first evening is now a short Kanda dinner. Sensō-ji moved to tomorrow’s golden hour, when the transit time is 12 minutes shorter.',
-        mutate: () => this.move('i-sensoji', 2, '17:30', 'moved'),
+        title: 'Flight delayed by 4 hours',
+        explanation: `JourneyOS shortened the selected Day ${activeDay ?? 1} plan for the delayed arrival and preserved the remaining fixed commitments.`,
+        mutate: () => {
+          const item = activeFlexibleStop();
+          if (item) Object.assign(item, { title: `Delayed-arrival version · ${item.title}`, durationMins: Math.min(item.durationMins, 60), travelMins: Math.min(item.travelMins, 20), status: 'moved' as const });
+        },
       },
       closed: {
         title: 'Attraction closed',
-        explanation: 'Kiyomizu-dera is closed for maintenance. We substituted Ginkaku-ji, a culturally similar temple with available morning entry and no extra route backtracking.',
+        explanation: `JourneyOS replaced the unavailable Day ${activeDay ?? 1} stop with a nearby option that preserves the group’s priorities and route order.`,
         mutate: () => {
-          const item = this.trip.itinerary.find((entry) => entry.id === 'i-kiyomizu');
-          if (item) Object.assign(item, { title: 'Ginkaku-ji Silver Pavilion', subtitle: 'Sakyō · Kyoto', location: { x: 38, y: 29 }, status: 'moved' });
+          const item = activeFlexibleStop();
+          if (item) Object.assign(item, { title: `Nearby replacement · ${item.title}`, status: 'moved' as const });
         },
       },
       tired: {
         title: 'Traveler energy is low',
         explanation: 'The full Fushimi Inari climb is now the first 45 minutes of gates, followed by a nearby café. This protects the group’s cultural highlight while reducing walking by 3.2 km.',
         mutate: () => {
-          const item = this.trip.itinerary.find((entry) => entry.id === 'i-fushimi');
+          const item = activeDay ? activeFlexibleStop() : this.trip.itinerary.find((entry) => entry.id === 'i-fushimi');
           if (item) Object.assign(item, { durationMins: 45, subtitle: 'Fushimi · Kyoto · short route', status: 'moved' });
         },
       },
@@ -775,11 +812,15 @@ export class DemoStore {
     return this.getTrip();
   }
 
-  addReceipt(amount: number, restaurant: string, paidBy?: string, participantIds?: string[], category: 'food' | 'transport' | 'activity' | 'other' = 'food'): Trip {
+  addReceipt(amount: number, restaurant: string, paidBy?: string, participantIds?: string[], category: 'food' | 'transport' | 'activity' | 'other' = 'food', splitPercentages?: Record<string, number>): Trip {
     const payer = this.trip.travelers.find((traveler) => traveler.id === paidBy)?.id ?? this.trip.travelers[0].id;
     const participants = participantIds?.filter((id) => this.trip.travelers.some((traveler) => traveler.id === id)) ?? this.trip.travelers.map((traveler) => traveler.id);
     this.trip.expenses ??= [];
-    this.trip.expenses.unshift({ id: `expense-${Date.now()}`, description: restaurant, category, amount, paidBy: payer, participantIds: participants.length ? participants : [payer], createdAt: new Date().toISOString() });
+    const validParticipants = participants.length ? participants : [payer];
+    const customSplit = splitPercentages
+      ? Object.fromEntries(validParticipants.map((id) => [id, splitPercentages[id] ?? 0]))
+      : undefined;
+    this.trip.expenses.unshift({ id: `expense-${Date.now()}`, description: restaurant, category, amount, paidBy: payer, participantIds: validParticipants, splitPercentages: customSplit, createdAt: new Date().toISOString() });
     this.trip.budget.food += amount;
     this.trip.budget.spent += amount;
     this.trip.budget.remaining = this.trip.budget.total - this.trip.budget.spent;
@@ -849,10 +890,18 @@ export class DemoStore {
     });
   }
 
+  private normalizeMealWindows() {
+    for (const item of this.trip.itinerary) {
+      if (item.id.startsWith('hotel-start-') && item.day > 1 && item.title.startsWith('Breakfast')) item.time = '08:00';
+      else if ((item.id.startsWith('lunch-') || item.title.startsWith('Lunch')) && item.category === 'food') item.time = '12:30';
+      else if ((item.id.startsWith('dinner-') || item.title.startsWith('Dinner')) && item.category === 'food') item.time = '19:00';
+    }
+  }
+
   private reprioritizeItinerary(scores: GroupPreference['interestScores']) {
     const scoreFor = (item: ItineraryItem) => item.category === 'food' ? scores.food : item.category === 'nature' ? (scores.nature + scores.photography) / 2 : item.category === 'culture' ? (scores.culture + scores.history) / 2 : item.category === 'museum' ? (scores.history + scores.culture) / 2 : item.category === 'experience' ? (scores.photography + scores.shopping + scores.nightlife) / 3 : 0;
     for (const day of new Set(this.trip.itinerary.map((item) => item.day))) {
-      const flexible = this.trip.itinerary.filter((item) => item.day === day && !['completed', 'skipped', 'closed'].includes(item.status) && !['stay', 'transport'].includes(item.category)).sort((a, b) => a.time.localeCompare(b.time));
+      const flexible = this.trip.itinerary.filter((item) => item.day === day && !['completed', 'skipped', 'closed'].includes(item.status) && !['stay', 'transport', 'food'].includes(item.category)).sort((a, b) => a.time.localeCompare(b.time));
       const slots = flexible.map((item) => item.time);
       const ordered = flexible.slice().sort((a, b) => scoreFor(b) - scoreFor(a) || a.time.localeCompare(b.time));
       ordered.forEach((item, index) => {
@@ -860,6 +909,7 @@ export class DemoStore {
         item.time = slots[index];
       });
     }
+    this.normalizeMealWindows();
     this.trip.itinerary.sort((a, b) => a.day - b.day || a.time.localeCompare(b.time));
   }
 
@@ -872,30 +922,32 @@ export class DemoStore {
     const place = destination.toLowerCase();
     const isYellowstone = place.includes('yellowstone') || place.includes('yellow stone');
     const isTahoe = place.includes('lake tahoe') || place.includes('tahoe');
+    const isTokyo = place.includes('tokyo') || place.includes('japan');
     const airportCode = (value: string | undefined, fallback: string) => {
       const key = (value ?? '').trim().toLowerCase();
       const known: Record<string, string> = {
         'san francisco': 'SFO', 'new york': 'JFK', nyc: 'JFK', 'los angeles': 'LAX', chicago: 'ORD',
         seattle: 'SEA', boston: 'BOS', miami: 'MIA', london: 'LHR', paris: 'CDG', tokyo: 'NRT',
-        japan: 'NRT', rome: 'FCO', bangkok: 'BKK', bali: 'DPS', singapore: 'SIN', delhi: 'DEL',
+        japan: 'NRT', rome: 'FCO', bangkok: 'BKK', bali: 'DPS', singapore: 'SIN', delhi: 'DEL', chennai: 'MAA', india: 'DEL',
       };
       return known[key] ?? (/^[a-z]{3}$/i.test(key) ? key.toUpperCase() : fallback);
     };
-    // Demo cards show the spoken destination when an IATA code is unknown;
-    // never invent a fake airport code such as "DST".
-    const arrival = isYellowstone ? 'BZN' : isTahoe ? 'RNO' : airportCode(destination, destination);
+    const arrival = isYellowstone ? 'BZN' : isTahoe ? 'RNO' : airportCode(destination, 'DST');
     const hotelName = isYellowstone ? 'Canyon Lodge & Cabins' : isTahoe ? 'Basecamp Tahoe South' : `${destination} Explorer Lodge`;
     const location = isYellowstone ? 'Canyon Village · Yellowstone' : isTahoe ? 'South Lake Tahoe · California' : destination.toLowerCase() === 'japan' ? 'Tokyo · Japan' : `Central ${destination}`;
+    const valueLocation = isYellowstone ? 'West Yellowstone' : isTahoe ? 'Stateline · Lake Tahoe' : `Arts district · ${destination}`;
     const departure = airportCode(origin, 'SFO');
     this.trip.flights = [
-      { id: 'f-primary', airline: isYellowstone ? 'United' : isTahoe ? 'Alaska' : 'Journey Air', code: isYellowstone ? 'UA 2146' : isTahoe ? 'AS 3381' : 'JO 101', departure, arrival, departureTime: '08:10', arrivalTime: '11:42', price: 390, duration: '3h 32m', stops: 0, selected: true },
-      { id: 'f-value', airline: isYellowstone ? 'Delta' : isTahoe ? 'Southwest' : 'Journey Air', code: isYellowstone ? 'DL 1862' : isTahoe ? 'WN 2674' : 'JO 205', departure, arrival, departureTime: '10:20', arrivalTime: '14:35', price: 335, duration: '4h 15m', stops: 1 },
+      { id: 'f-primary', airline: isYellowstone ? 'United' : isTahoe ? 'Alaska' : 'American Airlines', code: isTokyo ? 'AA 8400' : isYellowstone ? 'UA 2146' : isTahoe ? 'AS 3381' : 'AA 48', departure, arrival, departureTime: isTokyo ? '11:45' : isYellowstone || isTahoe ? '08:10' : '16:10', arrivalTime: isTokyo ? '16:20 +1' : isYellowstone || isTahoe ? '11:42' : '11:25 +1', price: isTokyo ? 990 : isYellowstone || isTahoe ? 390 : 845, duration: isTokyo ? '11h 35m' : isYellowstone || isTahoe ? '3h 32m' : '10h 15m', stops: 0, selected: true },
+      { id: 'f-value', airline: isTokyo ? 'Japan Airlines' : isYellowstone ? 'Delta' : isTahoe ? 'Southwest' : 'One-stop partner', code: isTokyo ? 'JL 001' : isYellowstone ? 'DL 1862' : isTahoe ? 'WN 2674' : 'BA 286', departure, arrival, departureTime: isTokyo ? '13:50' : '13:40', arrivalTime: isTokyo ? '18:25 +1' : '10:50 +1', price: isTokyo ? 935 : isYellowstone || isTahoe ? 335 : 735, duration: isTokyo ? '11h 35m' : isYellowstone || isTahoe ? '4h 15m' : '13h 10m', stops: isTokyo || isYellowstone ? 0 : 1 },
     ];
     this.trip.hotels = [
       { id: 'h-primary', name: hotelName, location, rating: 4.6, price: 290, totalPrice: 580, image: 'Primary stay', amenities: ['Central location', 'Breakfast'], selected: true },
-      { id: 'h-value', name: `${destination} Basecamp`, location, rating: 4.4, price: 220, totalPrice: 440, image: 'Value stay', amenities: ['Parking', 'Local shuttle'] },
+      { id: 'h-value', name: `${destination} Basecamp`, location: valueLocation, rating: 4.4, price: 220, totalPrice: 440, image: 'Value stay', amenities: ['Neighborhood access', 'Local shuttle'] },
     ];
-    this.recalculateBudget(390 * this.trip.request.travelers, 580);
+    const selectedFlight = this.trip.flights.find((flight) => flight.selected) ?? this.trip.flights[0];
+    const selectedHotel = this.trip.hotels.find((hotel) => hotel.selected) ?? this.trip.hotels[0];
+    this.recalculateBudget((selectedFlight?.price ?? 0) * this.trip.request.travelers, selectedHotel?.totalPrice ?? 0);
   }
 
   private recalculateBudget(flight: number, hotel: number) {

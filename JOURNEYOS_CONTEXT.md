@@ -1,322 +1,199 @@
-# JourneyOS — Project Context and Handoff
+# JourneyOS durable project context
 
-Last updated: July 18, 2026
+Read this file before changing JourneyOS after a long conversation, context compaction, handoff, or merge. It records the intended product, demo story, architecture, current behavior, integration boundaries, commands, risks, and unfinished work. Update it whenever a major decision changes.
 
-## Context maintenance policy
+## Product and hackathon goal
 
-This file is the canonical JourneyOS project handoff and decision log. Repository instructions require it to be updated in the same task whenever application behavior, architecture, integrations, configuration requirements, run commands, voice-agent rules, UX decisions, test status, deployment, or Git/PR state changes.
+JourneyOS is a **voice-first operating system for group travel**. Its memorable feature is the **AI Travel Negotiator**: it already knows the group's saved preferences, calls one consenting traveler, names a specific conflict, proposes a fair trade, seeks explicit agreement, and sends the result to the trip admin before changing the itinerary.
 
-Obsolete guidance should be replaced rather than retained as conflicting history. Secrets, credentials, API keys, access tokens, and personal phone numbers must never be added.
+Do not describe the primary experience as a chatbot, survey, passive mediator, or generic concierge. The winning sentence is: **“JourneyOS negotiates one fair group plan, books the known travel through Sabre, and adapts the active day by voice.”**
 
-## Product direction
+Hackathon qualification requires both Sabre APIs and Vocal Bridge. Prize targets also include:
 
-JourneyOS is a voice-first group travel planner for friends. One continuous Travel Mediator helps the admin move from an initial spoken brief through friend preference collection, negotiated itinerary planning, live travel inventory, booking review, the live trip, and shared-expense settlement.
+- American Airlines Blue Sky Thinking Award: make AA flight evidence clear when Sabre CERT actually returns AA inventory; never relabel another carrier as AA.
+- PayPal Best Dev Tools Award: complete a real PayPal sandbox approval/capture demonstration.
+- Audience Award: keep the story understandable in three minutes and make the negotiation outcome visually obvious.
 
-The central demo story is:
+## Canonical three-minute demo
 
-1. The admin describes one shared trip by voice.
-2. JourneyOS creates a structured trip brief.
-3. The admin adds friends and records call consent.
-4. Vocal Bridge calls friends sequentially for short preference interviews.
-5. JourneyOS saves each outcome and positively negotiates group priorities.
-6. The itinerary, maps, booking options, and checkout use the confirmed trip context.
+1. Start from the seeded Tokyo trip for Hema, Prabhu, Deepu, and Sanjay.
+2. Show two earlier preference profiles as already collected; these are the comparison context, not a prewritten conflict.
+3. In **Plan together**, call only the third friend's real, consenting phone number through Vocal Bridge.
+4. JourneyOS first asks for one live priority or constraint. Only after the traveler answers does it compare that answer with the two known profiles, identify any real conflict, explain why it matters, and generate a specific trade.
+5. The traveler explicitly accepts or rejects the generated trade. The live transcript appears. The UI shows the discovered conflict, computed before → after plan fit, accepted changes, and an admin preview.
+6. Hema clicks **Apply agreement to Day 2**. Only then does Day 2 gain the early dinner and optional nightlife.
+7. Show Sabre CERT package/flight/hotel evidence. Select a package and open PayPal sandbox for the known pre-trip amount.
+8. On **Live itinerary**, select a day and say a contextual command such as “mark place 2 complete” or “cancel the evening activity.” The selected day updates; the voice agent must not restart trip planning.
+9. If time permits, show a shared receipt, custom split, net settlement, and PayPal collection.
 
-## Current repository
+If live outbound calling is unavailable, use the clearly labeled scripted fallback. It runs the same server state transitions and admin approval rule; never imply that it placed a real call.
 
-Working directory:
+## Seeded people and default demo story
 
-```text
-/Users/praveendran/Documents/Codex/2026-07-15/files-mentioned-by-the-user-you/merge-correct
+- Hema: trip admin; culture, history, sushi/regional food; full pace.
+- Prabhu: live-call target; street food, photography, nightlife; balanced pace.
+- Deepu: vegetarian friendly, culture/photography; demo constraint is early vegetarian dinner.
+- Sanjay: no shellfish, easy pace, nature/culture.
+- The default seed provides a useful set of different preferences, but the conflict must be discovered from what the third traveler actually says during the live call.
+- Fallback schedule times are calculated from the active day's existing stops and meal windows. Vocal Bridge may return different accepted times from the real conversation.
+- Negotiation names, counterpart, conflict, destination, affected day, itinerary labels, transcript, and plan-fit values are derived from the active trip. Plan fit is deterministic and evidence-based, not probabilistic model confidence.
+
+Do not hardcode negotiation outcomes to Hema, Prabhu, Deepu, Tokyo, Day 2, or fixed fit percentages. The named Tokyo roster is only the ready-to-run seed; edited traveler profiles and newly created trips must produce their own negotiation context.
+
+Do not replace the named roster with “Friend 1,” “Friend 2,” etc. A new trip brief updates Hema's organizer preferences and reconciles the requested group size while preserving existing named friends and their phone numbers whenever possible.
+
+## Current pages and intended order
+
+1. Trip dashboard: current trip brief, day plan summary, weather for the trip destination.
+2. Plan together: voice brief plus the focused one-call AI Travel Negotiator. The older partner-built `GroupPlanningPanel.tsx` remains preserved in source; the focused experience is `NegotiationExperience.tsx`.
+3. Live itinerary: selected day's ordered activities first, contextual voice control/progress, then the day map and selected-place details. Voice commands must use the current page and active day.
+4. Booking & trip payments: Sabre flight/hotel/package selection and PayPal payment for known pre-trip costs.
+5. Shared expenses: scan/add/delete receipts, equal or custom percentage splits, traveler paid/share/net totals, and final collection.
+6. Travel DNA: evidence-backed likes, dislikes, constraints, and negotiation-useful learning. Avoid unexplained 5/5 scores or fake confidence.
+
+## Architecture
+
+- `client/`: React, TypeScript, Vite, Tailwind-style utility CSS.
+- `server/`: Express, TypeScript, Zod validation.
+- `server/src/store/demo-store.ts`: in-memory demo persistence seam and deterministic domain transitions.
+- Browser state is also hydrated from the current trip object; the server polls active Vocal Bridge call state through `/api/trips/demo`.
+- `server/src/db/schema.sql`: future normalized persistence starting point. The current app is not a production multi-user/multi-trip backend.
+- `vocal-bridge/`: agent prompt and action configuration source. Dashboard/hosted agent configuration must be manually synchronized after changes.
+
+Key negotiation endpoints:
+
+- `POST /api/planner/negotiation/start`: starts one live call when configured, otherwise returns scripted mode.
+- `POST /api/planner/negotiation/simulate`: reliable scripted completion using the same state model.
+- `POST /api/negotiation-calls/complete`: secured live callback for explicit accept/decline.
+- `POST /api/planner/negotiation/apply`: admin-only demo action that changes the agreement's derived day after acceptance.
+- `GET /api/voice/outbound-context`: secured trip and conflict context for the outbound agent.
+
+## Integration truth and configuration
+
+Never commit `.env`, API keys, access tokens, phone secrets, PayPal credentials, or Sabre credentials. Use `.env.example` only for variable names.
+
+### Vocal Bridge
+
+Server variables: `VOCAL_BRIDGE_API_KEY`, `VOCAL_BRIDGE_API_URL`, `VOCAL_BRIDGE_AGENT_ID`, and `VOCAL_BRIDGE_CONTEXT_SECRET`. Real outbound calls also require the `vb` CLI to be installed, authenticated, and allowed to place calls. Phone numbers must be E.164 and belong to a consenting demo participant.
+
+The hosted agent must be able to reach the local callback through a public HTTPS tunnel. Configure its context fetch and completion callback with `X-JourneyOS-Context-Key` equal to `VOCAL_BRIDGE_CONTEXT_SECRET`. The global in-browser mic uses page context and is separate from the outbound telephone call.
+
+### Sabre
+
+The app supports Sabre CERT adapters/MCP and mock fallback. CERT is sandbox evidence, not production booking availability. Search uses trip origin, destination airport mapping, dates, return date, and traveler count. AA should appear only when the returned carrier is actually American Airlines/AA. CERT inventory and prices can be unrealistic; label source and recheck requirements visibly.
+
+Variables are documented in `.env.example`, including OAuth v2 hackathon values and CERT endpoints. Do not expose any Sabre credential to the client.
+
+### Google
+
+Server key: `GOOGLE_PLACES_API_KEY`; optional `GOOGLE_WEATHER_API_KEY`. Client map key is normally in `client/.env.local` using the client variable expected by the map component. Enable the exact APIs used (Maps JavaScript, Places, Routes, Weather where applicable), allow billing if Google requires it, and set separate server/client key restrictions. Blank maps commonly mean API restriction, billing, referrer, quota, or invalid-place data problems—not a CSS problem.
+
+### PayPal
+
+Set `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `PAYPAL_ENV=sandbox`, and `MOCK_MODE=false` for real sandbox Orders API behavior. A real approval URL should open PayPal sandbox; a mock order must be labeled mock and will not show in a sandbox account. Known flight/hotel costs use an admin-first model: the trip admin advances the full booking total once, then JourneyOS calculates each traveler's reimbursement share. This PayPal merchant collection does not itself pay or ticket Sabre flight/hotel suppliers; supplier booking and settlement remain separate integrations. Variable receipts are tracked during travel and net-settled afterward so booking costs are never charged twice. Each end-of-trip PayPal checkout targets one selected debtor's exact net reimbursement rather than pretending one checkout collected from every traveler. Shipping is disabled for these non-physical orders.
+
+### Receipt OCR
+
+Landing AI is optional (`LANDING_AI_API_KEY`, `LANDING_AI_ENDPOINT`). The app has a labeled demo receipt fallback. Receipts record description, amount, payer, participants, and optional custom percentages; incorrect receipts can be deleted and totals reverse.
+
+## Local setup and commands (Windows PowerShell)
+
+Use Node 20 LTS if possible. This repository already contains pnpm-style dependencies; avoid repeatedly mixing package managers. Normal commands from the repository root:
+
+```powershell
+npm.cmd install
+npm.cmd --prefix server install
+npm.cmd --prefix client install
+npm.cmd run dev
 ```
 
-Main application structure:
+App default: `http://localhost:5173`; API: `http://localhost:8787`. If ports are occupied:
 
-- `client/` — React, TypeScript, Vite, Tailwind, Vocal Bridge React SDK
-- `server/` — Express, TypeScript, Sabre integration, Vocal Bridge proxy/callbacks, Google services, trip store
-- Root npm scripts coordinate setup, development, build, linting, and tests.
+```powershell
+Get-NetTCPConnection -LocalPort 8787,5173,5174,5175 -ErrorAction SilentlyContinue |
+  Where-Object OwningProcess -gt 0 |
+  Select-Object LocalPort,OwningProcess -Unique
 
-Current Git publication:
-
-- Working branch: `agent/live-trip-planning`
-- User fork: `praveendraniq/journeyOS`
-- The partner branch `hemalekamohanram/journeyOS:codex/journeyos-demo-ready` was inspected and selectively reconciled on July 18, 2026. The current tree includes its dynamic negotiation concept, page-aware Live Trip voice commands, and Maps JavaScript route rendering while preserving the newer structured voice brief, explicit `server/.env` loading, friend validation/callbacks, selected-hotel map anchoring, and Sabre authentication behavior.
-
-## Local development
-
-Open three Terminal windows.
-
-### Terminal 1 — backend
-
-```bash
-cd /Users/praveendran/Documents/Codex/2026-07-15/files-mentioned-by-the-user-you/merge-correct
-npm --prefix server run dev
+# Inspect each PID before stopping it; do not kill PID 0.
+Get-Process -Id <PID>
+Stop-Process -Id <PID>
 ```
 
-The backend normally listens on port `8787`.
+Then run `npm.cmd run dev` once and use the exact Vite URL printed. `EADDRINUSE` on 8787 means an older API is already running. Vite moving to 5174/5175 means an older client is still running, and `CLIENT_ORIGIN` may need to match that URL for CORS.
 
-### Terminal 2 — frontend
+Verification:
 
-```bash
-cd /Users/praveendran/Documents/Codex/2026-07-15/files-mentioned-by-the-user-you/merge-correct
-npm --prefix client run dev
+```powershell
+npm.cmd test
+npm.cmd run lint
+npm.cmd run build
 ```
 
-Open the URL printed by Vite, normally:
-
-```text
-http://localhost:5173
-```
-
-### Terminal 3 — Vocal Bridge public tunnel
-
-```bash
-ngrok http --url=chant-barbed-heroism.ngrok-free.dev 8787
-```
-
-Keep all three processes running during voice-call testing. Use `Ctrl+C` to stop one.
-
-The root command can also start the backend and frontend together:
-
-```bash
-npm run dev
-```
-
-## Environment and secrets
-
-Secrets belong only in environment files and must never be committed or exposed in the browser.
-
-Relevant server-side variable names include:
-
-- `VOCAL_BRIDGE_API_KEY`
-- `VOCAL_BRIDGE_AGENT_ID`
-- `VOCAL_BRIDGE_MAYA_API_KEY`
-- `VOCAL_BRIDGE_MAYA_AGENT_ID`
-- `VOCAL_BRIDGE_MAYA_PHONE`
-- `VOCAL_BRIDGE_CONTEXT_SECRET`
-- `GOOGLE_PLACES_API_KEY`
-- `GOOGLE_WEATHER_API_KEY`
-- Sabre OAuth/MCP variables defined in `server/src/config.ts`
-
-Relevant client-side variable:
-
-- `VITE_GOOGLE_MAPS_API_KEY`
-
-No secret values or personal phone numbers are recorded in this document.
-
-## Vocal Bridge architecture
-
-The browser uses `@vocalbridgeai/react` with a server-token route:
-
-```text
-POST /api/voice-token
-```
-
-The Vocal Bridge key and agent ID stay on the backend. The browser receives only a temporary session token.
-
-The persistent voice assistant is available across the application. It sends current page and confirmed-trip context to the mediator without treating demo inventory as an admin-confirmed brief.
-
-Outbound friend calls use:
-
-```text
-GET /api/voice/outbound-context
-POST /api/preference-calls/complete
-```
-
-Both routes authenticate with `X-JourneyOS-Context-Key` using the server-side `VOCAL_BRIDGE_CONTEXT_SECRET` value.
-
-The saved Vocal Bridge HTTP Custom API tools are:
-
-- `get_trip_context`
-- `save_friend_preferences`
-
-The optional live negotiator additionally posts its explicit yes/no result to:
-
-```text
-POST /api/negotiation-calls/complete
-```
-
-The callback uses the same `X-JourneyOS-Context-Key` secret. The itinerary remains unchanged until the admin applies an accepted agreement in the planner.
-
-`save_friend_preferences` must be called as a saved HTTP Custom API tool through Background AI. It must not be sent through `trigger_client_action`.
-
-## Voice-agent behavior
-
-The same main Travel Mediator supports both admin planning sessions and outbound friend calls.
-
-### Admin planning session
-
-The mediator must collect only missing essentials:
-
-- Origin city spoken by the admin
-- Destination city spoken by the admin
-- Exact departure and return dates; duration is calculated from them
-- Total number of travelers, including the admin
-- Total group budget and currency
-- Preferred places or activities, pace, dietary needs, accessibility needs, and important lodging preferences
-
-Origin and destination must come from the current voice conversation. The agent must not infer a city from a country, airport code, sample trip, application default, or old transcript. If the user gives a country or airport code, the agent asks for the city.
-
-All of the following are required before the brief can be created: both exact dates, at least one place/interest/activity preference, an explicit pace, and an explicit food preference or a statement that there are no dietary restrictions. Duration alone is not a substitute for dates.
-
-Before ending, the agent confirms the brief once and calls:
-
-```text
-trip_brief_ready
-```
-
-Its payload contains a `conversation` field with one polished paragraph plus structured `origin`, `destination`, ISO `departureDate`, ISO `returnDate`, `travelers`, `budget`, `interests`, `foodPreferences`, and `travelStyle` fields. Structured fields are authoritative; the bounded current-session transcript remains a fallback. The action must succeed before the agent gives a short goodbye and calls `end_call`.
-
-### Friend preference call
-
-The mediator calls `get_trip_context` immediately and treats the returned trip basics as established. It does not ask the friend for origin, destination, dates, duration, group size, or budget.
-
-It asks exactly three short questions:
-
-1. One must-do experience
-2. Food requirement or anything to avoid
-3. Easy, balanced, or active pace
-
-After the third answer, it states one short positive negotiation, calls `save_friend_preferences` with the exact traveler ID, gives a short goodbye, and calls `end_call`.
-
-Never say “conflicting preference.” Use language about balancing or negotiating priorities while protecting must-dos, dietary constraints, accessibility needs, and pace limitations.
-
-### Call timing and confirmation
-
-- Admin and friend calls target 40–45 seconds.
-- At 45 seconds, the browser sends a wrap-up instruction; it does not disconnect or cut off the traveler.
-- The mediator finishes the current exchange, confirms once, saves what is complete, and ends gracefully. A timer must never stop the call mid-sentence.
-- The mediator acknowledges individual answers briefly without repeating or reconfirming them. The complete brief or friend preference set is confirmed exactly once at the end.
-- Vocal Bridge Max Call Duration should allow enough grace for a natural goodbye; the prompt targets a sub-minute call rather than relying on an abrupt platform cutoff.
-- Explicit phrases such as “hang up,” “end the call,” and “goodbye” trigger immediate browser disconnection if the remote agent fails to close the session.
-- After a call ends, a short reconnect lock rejects realtime transport reconnects that would replay the greeting. Only an explicit new mic click may start another session.
-
-## Trip-brief and transcript behavior
-
-- Only the current voice session is used to create a new brief.
-- Old transcript entries are not reused.
-- The Plan textarea does not concatenate all historic user messages.
-- On disconnect, the latest session is processed if `trip_brief_ready` was not emitted.
-- The transcript panel displays an updating state while the server creates the polished summary.
-- Incomplete transcripts are rejected with a list of missing fields. In particular, both exact dates and explicit activity/place, pace, and food answers are required.
-- Rejection details are displayed directly in the transcript summary so the admin sees the exact fields to provide on the next short call.
-- Incomplete briefs are cumulative across short calls: JourneyOS retains the admin's partial transcript, asks only for the remaining fields, merges the new answers, and clears the partial draft after successful brief creation. It never fills the draft from demo defaults.
-- Brief extraction merges the mediator's final action summary with the current session dialogue. Short answers such as “Two” or “Four thousand dollars” are interpreted only in the context of the mediator's traveler-count or budget question, preventing valid spoken answers from being discarded.
-- The browser no longer rejects a `trip_brief_ready` action using a second regex-based validation gate. The backend merges structured action fields over transcript extraction and performs the single authoritative completeness check.
-- Planner requests carry the browser's current saved trip so a backend restart cannot replace an accepted brief with seeded Tokyo state during the next update.
-- A successful brief update regenerates trip request data, group roster, destination-aware itinerary, booking choices, and live-map stops together from one response.
-- The planner endpoint accepts up to 20,000 characters for the bounded current/partial voice transcript; the former 1,000-character limit was too small once summary and dialogue were merged.
-- Incomplete transcripts never silently inherit Japan, dates, traveler count, budget, or preferences from demo data.
-- The structured origin and destination are extracted generically from the agent’s polished `from [city] to [city]` summary. There is no hard-coded US or global city lookup table.
-- The generic route parser also accepts the mediator’s destination-first form: `to [destination], departing from [origin]`.
-- Regression coverage includes Indian city names such as Bengaluru and Jaipur.
-
-## Friends and preference collection
-
-- Traveler count includes the admin.
-- The first traveler is always the admin.
-- Other friend slots equal total travelers minus one.
-- Friend names and phone numbers can be entered manually or supplied by voice.
-- Phone numbers are required in E.164 format before saving or calling.
-- Validation should remain field-level rather than toast-only.
-- A friend must explicitly consent before JourneyOS can call them.
-- Friends can be added or removed.
-- Calls are placed sequentially, not simultaneously.
-- Each card displays calling state, outcome, structured preferences, summary, and negotiated plan fit when available.
-- The admin can end an active friend call from the UI when supported by the call workflow.
-
-## Sabre integration
-
-Sabre is used for live or CERT flight and hotel search, with booking workflows intended for the hackathon demonstration.
-
-Important context:
-
-- PCC for hackathon CERT testing: `S5OM` (uppercase letter O)
-- OAuth/access tokens remain server-side.
-- The Sabre skills-based MCP endpoint is configured through server environment variables.
-- Live results must be clearly distinguished from demo inventory.
-- Sabre MCP flight search sends the requested adult count, and the hackathon international flow searches hotel inventory from the destination-arrival day rather than the home-departure day.
-- Booking must preserve selected offer identifiers and require explicit admin confirmation.
-- No booking or payment is represented as complete without a successful backend response.
-
-## Google integrations
-
-- The browser map uses `VITE_GOOGLE_MAPS_API_KEY`.
-- Google Places and route planning use server-side keys.
-- Billing and the required APIs must be enabled in the same Google Cloud project.
-- The July 18 browser validation showed that the current client key can load Maps JavaScript and Embed, but its Geocoding service is not enabled. The app falls back to the embedded day route; enable Geocoding API for numbered JavaScript markers and the rendered polyline.
-- Live itineraries should use group preferences to select stops.
-- Each day should start and end at the hotel chosen on the booking page.
-- Routes should include breakfast, lunch, and dinner where appropriate and optimize the complete return-to-hotel route.
-- Google map routes use complete Places postal addresses directly, use the selected hotel location as the daily route anchor, and remount the embed when the selected day changes. This prevents unresolved demo hotel names from falling back to a world map.
-- When the Maps JavaScript API is available, Live Trip geocodes the active day, shows numbered markers, draws the day route, and falls back to a Google Embed route if JavaScript map loading or geocoding fails.
-
-## UX decisions
-
-- Keep the partner’s planner UI and the newer editable trip timeline.
-- Keep Vocal Bridge and Sabre integrations.
-- Keep the microphone lifecycle fixes.
-- Keep the dynamic travel-brief fixes.
-- Keep the agent network concept, but do not expose a redundant standalone agent screen.
-- Voice should feel continuous across pages while maintaining confirmed context.
-- On Live Trip, `itinerary_command` applies start, complete, restore, skip, cancel, or delay requests only to the active day; `show_day`, `navigate`, and `replan_trip` preserve the same voice session and confirmed trip context.
-- The Plan screen contains the voice brief and the single AI Travel Negotiator flow: known group context, one consented friend call, live/scripted transcript, admin preview, and Decision Studio. The older redundant Friends & preference calls block is intentionally removed.
-- Decision Studio always shows Admin priority adjustment and Projected plan. Friend-call result cards appear when results exist; applying the adjusted plan remains disabled until friend input has been collected.
-- Live itinerary and dashboard timelines show Mark as done for experience/food stops and Undo done after completion; completion is persisted through the existing itinerary progress API.
-- Live voice commands are page-aware and constrained to the selected day. The app handles Vocal Bridge itinerary/replan actions and also applies a user transcript command directly when the agent fails to emit the action. Skipped stops expose Restore stop, and completed stops expose Undo done.
-- Negotiation outbound calls automatically switch to the labeled scripted flow when Vocal Bridge credentials, CLI execution, or outbound quota are unavailable; disruption controls remain connected to the active-day replan API.
-- Live itinerary layout order is: journey map and timeline, Live activity progress, disruption controls, then the Why this order works before/optimised comparison at the bottom.
-- Booking and payment should remain minimal and voice-driven.
-- Live Trip should show real preference-aware daily stops and mapped directions.
-- Day 1 is selected whenever a newly accepted trip brief creates an itinerary.
-- Avoid redundant cards and repeated trip information.
-- Branding near the voice control should say “Powered by Vocal Bridge.”
-- The partner Dashboard and package-style Booking screen are preserved. The sidebar order and labels are: Trip dashboard, Plan together, Live itinerary, Book & split, Shared expenses, and Travel memory.
-- The Dashboard uses the partner’s full Group Vibe panel: overall mood and group fit, fairness gap, per-traveler would-love/keep-light priorities, call status or plan-fit explanation, and the current fair-trade summary. It remains driven by live traveler and preference-call state.
-- Package cards use the spoken destination name when the demo store does not know an IATA code; they never display a fabricated `DST` airport code. Sabre CERT search still requires a real three-letter code or a supported city-to-airport resolution.
-
-## Current validation status
-
-At the time this handoff was written:
-
-```text
-npm run build  — passed
-npm test       — 22 tests passed
-```
-
-The test suite includes regression coverage for:
-
-- No default-Japan fallback from incomplete transcripts
-- Generic international city extraction without a city lookup table
-- Short-answer extraction using mediator-question context, with concrete spoken dates taking precedence over question wording
-- Structured Vocal Bridge action fields overriding transcript extraction without a hard-coded city table
-- Trip date and traveler reconciliation
-- Deterministic itinerary and group-happiness behavior
-- Expense settlement and receipt reversal
-- Negotiation preview remaining unchanged until explicit admin approval
-- Page-aware itinerary voice commands targeting only the selected day
-
-## Important testing flow
-
-For a clean admin test, start a new voice conversation and say something similar to:
-
-> Plan a six-day trip from Bengaluru to Jaipur for two travelers with a total budget of five thousand dollars. We prefer food and history, a balanced pace, and vegetarian-friendly meals. Create the brief and hang up.
-
-Verify that:
-
-1. The mediator targets a sub-minute call and, if it runs longer, wraps up without cutting off audio.
-2. The transcript uses only the current conversation.
-3. The polished travel brief appears after disconnect.
-4. Origin is Bengaluru and destination is Jaipur.
-5. No Japan demo values appear.
-6. Booking, dashboard, and live-trip screens receive the same trip context.
-
-## Git and collaboration notes
-
-The repository previously integrated a partner PR containing Google Maps, disruption-demo, Decision Studio, and related planner UI work. Subsequent work preserved and adapted Sabre, Vocal Bridge, one-way/date boundaries, agent coordination, booking/checkout, microphone fixes, and dynamic trip-brief behavior.
-
-Before publishing additional work:
-
-1. Review `git status` and `git diff`.
-2. Preserve unrelated partner changes.
-3. Run `npm run build` and `npm test`.
-4. Resolve PR conflicts without dropping either the partner UI or the JourneyOS integration fixes.
+There is no root `typecheck` script; root `lint` invokes both workspace typechecks. Production build also runs TypeScript compilation.
+
+## Git safety and collaboration
+
+- Current working branch at the time of this file: `codex/journeyos-demo-ready`.
+- Public project origin: `https://github.com/hemalekamohanram/journeyOS.git`.
+- Partner upstream: `https://github.com/praveendraniq/journeyOS.git`.
+- The same machine/user profile is used for private office work. Before every push run `git remote -v`, `git branch --show-current`, and `git status --short`.
+- Never use `git add .` without reviewing files. Prefer explicit project file paths. Never push `.env`, logs, screenshots containing tokens, or unrelated repositories.
+- Partner voice work came from upstream/main. Preserve it during merges; inspect conflicts rather than overwriting the partner's page wholesale.
+- Pulling `main` into a feature branch means fetching and merging/rebasing the latest main changes into that branch. It does not automatically publish the branch.
+
+## Completed behavior worth preserving
+
+- Destination parsing no longer always resets to Japan; China and Chennai extraction are tested.
+- First brief preserves named friends/phones; group size reconciles safely.
+- Contextual voice mic receives current page, destination, selected day, and trip state.
+- Selected-day commands support start, complete, undo/restore, skip/cancel/remove, and delay.
+- Meal times are repaired into breakfast/lunch/dinner windows.
+- Live progress supports restore after accidental completion.
+- Receipt delete reverses budget totals; split percentages and net settlement exist.
+- Weather follows active destination with labeled live/fallback source.
+- Maps/Places/Routes, Sabre, PayPal, Vocal Bridge, and Landing AI have adapters with explicit fallback modes.
+- The AI Travel Negotiator now models call → explicit agreement → admin preview → apply, rather than changing the itinerary from a survey response.
+- PayPal checkout uses `NO_SHIPPING`; approval/cancel return windows notify the opener and close automatically.
+- Booking is admin-first. After capture, JourneyOS can create one exact private PayPal reimbursement order and copyable message per non-admin friend.
+- The neighborhood-hop bundle updates each day’s check-in, breakfast, dinner, and return hotel anchors instead of showing one hotel across the whole trip.
+- Live disruption controls are compact icons. Applying one updates the selected day and reveals the optimized before/after route directly below.
+- Group vibe uses CSS-drawn animated faces instead of platform-dependent emoji.
+- Sabre CERT shopping was verified against the live sandbox: it returned fresh flight offers for SFO → Tokyo. Carrier detail and hotel results are only displayed when Sabre exposes them; curated bundles remain explicitly separate demo choices.
+- Sabre credentials now accept either `SABRE_EPR_USERNAME` / `SABRE_EPR_PASSWORD` or the legacy `SABRE_V2_USER_ID` / `SABRE_V2_PASSWORD`, and the MCP adapter can obtain/cached OAuth tokens through the Sabre service rather than requiring a long-lived browser token.
+- Sabre CERT now refuses to guess a city-to-airport mapping. If the brief contains a city name, the live-search button asks for the official three-letter IATA origin and destination before it sends the request; this keeps the search real without adding a fragile hard-coded city list.
+- Live Sabre search proposes the selected package's displayed airport codes, asks the user for one explicit origin/destination confirmation, and supports the same confirmed pair through Vocal Bridge action `search_live_sabre`. A same-code route such as `BKK → BKK` reopens the edit prompt.
+- Curated bundle cards remain a separate demo decision surface. A live AA alert is shown only when a fresh Sabre response explicitly contains carrier code `AA` and its flight-only group fare is lower than the curated AA flight component; it must never compare a flight-only live price to a flight-plus-hotel bundle total.
+- Dashboard weather always queries the saved trip destination, not a human-readable itinerary subtitle such as “Central Tokyo,” which Open-Meteo cannot reliably geocode. The UI keeps the provider/fallback label visible.
+- Browser voice actions now cover navigation, selecting a bundle, explicit booking confirmation, collection, and adding a shared expense. The global assistant sends fresh current-page, trip, and active-day context whenever the route changes.
+- Voice can now add a named friend with an optional phone through `add_traveler`, but only after it repeats the details and receives explicit confirmation. The same server mutation backs voice and click entry, so the roster is immediately saved and visible on Planning.
+- Traveler-count changes recalculate curated flight totals, package totals, reimbursement shares, and payment participants. They also clear any displayed live Sabre CERT result, because supplier offers are passenger-count-specific and must be searched again for the new group.
+- Voice sessions are intentionally persistent across page navigation. The page microphone mutes/unmutes the existing session; only the explicit `End call` control disconnects it. The hosted Vocal Bridge prompt must be synchronized from `vocal-bridge/agent-prompt.md` for this behavior to be used in a real call.
+- Final local verification: TypeScript checks, 21 server tests, production build, desktop/mobile layouts, and browser console errors were checked on 2026-07-18. Google Maps currently reports a non-blocking direct-loader/legacy Marker and Directions API deprecation warning; migrate those APIs after the demo rather than masking the warning.
+
+## Known limitations and next work
+
+Highest priority before judging:
+
+1. Deploy/synchronize the updated Vocal Bridge prompt and configure the secured negotiation callback through a public HTTPS URL.
+2. Run one real consented call end-to-end and verify transcript/callback/polling on the actual hackathon network.
+3. Verify Google day maps show all selected-day markers, route lines, distances, and selected-place details using valid restricted keys.
+4. Run Sabre CERT search with event credentials and capture truthful AA evidence only if returned. Real booking still requires preserving a freshly selected opaque offer/rate payload plus complete traveler identity; curated demo bundles must never be submitted or labeled ticketed.
+5. Complete one PayPal sandbox approval and capture, then verify it in merchant and buyer sandbox dashboards.
+6. Perform browser E2E at desktop and narrow/mobile widths. Keep floating voice controls from covering settlement/actions.
+
+Production/future work:
+
+- Real authentication, authorization, persistent database, multiple trips per account, concurrency control, audit logs, and durable webhook idempotency.
+- Provider-grade booking confirmation/recheck, cancellation, refunds, and failure recovery.
+- SMS itinerary/settlement messages through a consented messaging provider; do not add Twilio merely for the three-minute demo unless it is already stable.
+- Native/mobile app later. The responsive web app is the correct hackathon surface; do not split tonight's effort into a second codebase.
+- Replace deterministic demo plan-fit policy with a documented, evidence-based scoring model only when enough real traveler signals exist.
+
+## Non-negotiable product rules
+
+- Voice and click must operate on the same state and actions.
+- The voice agent must respect current page and active day; never restart the generic planning greeting on Live itinerary.
+- Never hardcode a user-entered destination back to Japan.
+- Never present demo inventory, weather, calls, payments, OCR, or confidence as live.
+- No itinerary mutation until explicit traveler agreement and admin approval.
+- One memorable negotiation is better than several shallow preference interviews.

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { DemoStore } from './demo-store.js';
 import { groupHappiness } from '../services/happiness.service.js';
+import type { PlaceAttraction } from '../services/google-places.service.js';
 
 test('migrates legacy hydrated state without resetting its destination', () => {
   const store = new DemoStore();
@@ -53,7 +54,8 @@ test('skip and deterministic reset restore a reproducible demo', () => {
   assert.ok(stop);
   assert.equal(store.skipStop(stop.id).itinerary.find((item) => item.id === stop.id)?.status, 'skipped');
   const reset = store.reset();
-  assert.equal(reset.id, 'trip-japan-2026');
+  assert.equal(reset.id, 'trip-tokyo-2026');
+  assert.deepEqual(reset.travelers.map((traveler) => traveler.name), ['Hema', 'Prabhu', 'Deepu', 'Sanjay']);
   assert.equal(reset.request.destination, 'Tokyo');
   assert.equal(reset.schemaVersion, 2);
 });
@@ -83,6 +85,15 @@ test('preserves the exact user brief after creating a trip', () => {
   const transcript = 'I want seven quiet days in Kyoto with gardens, noodles, and no rushed mornings.';
   const updated = store.updateFromRequest({ ...request, destination: 'Kyoto', duration: 7 }, [], transcript);
   assert.equal(updated.briefTranscript, transcript);
+});
+
+test('first trip brief preserves the named friend roster and call-ready phones', () => {
+  const store = new DemoStore();
+  const before = store.getTrip();
+  const expectedFriends = before.travelers.slice(1).map(({ name, phone }) => ({ name, phone }));
+  const updated = store.updateFromRequest(before.request, [], 'Tokyo with Hema, Prabhu, Deepu, and Sanjay');
+  assert.deepEqual(updated.travelers.slice(1).map(({ name, phone }) => ({ name, phone })), expectedFriends);
+  assert.ok(updated.travelers.every((traveler) => traveler.phone));
 });
 
 test('trip brief group size reconciles the editable traveler roster', () => {
@@ -125,30 +136,105 @@ test('applies generated-trip disruptions to the active day', () => {
   const changed = updated.itinerary.find((item) => item.day === 2 && item.status === 'moved');
   assert.ok(changed);
   assert.match(changed.title, /Indoor cultural alternative/);
+  const dayTwoTimes = updated.itinerary.filter((item) => item.day === 2).map((item) => item.time);
+  assert.deepEqual(dayTwoTimes, [...dayTwoTimes].sort());
 });
 
-test('negotiates a live priority without changing the itinerary before admin approval', () => {
+test('voice tired replan changes only the selected Tokyo day', () => {
   const store = new DemoStore();
-  const friend = store.getTrip().travelers[1];
-  const beforeCount = store.getTrip().itinerary.length;
-  const started = store.startNegotiation(friend.id, 'mock');
-  assert.equal(started.preferenceCollection?.agreement?.status, 'calling');
-  assert.equal(started.itinerary.length, beforeCount);
-  const agreed = store.completeNegotiation({ travelerId: friend.id, accepted: true, statedPreference: 'anime shopping', travelerResponse: 'Yes, that balance works.' });
-  assert.equal(agreed.preferenceCollection?.agreement?.status, 'accepted');
-  assert.equal(agreed.itinerary.length, beforeCount);
+  const before = store.getTrip();
+  const dayOne = before.itinerary.filter((item) => item.day === 1).map((item) => ({ id: item.id, title: item.title, durationMins: item.durationMins }));
+  const updated = store.replan('tired', 2);
+  const changed = updated.itinerary.find((item) => item.day === 2 && item.status === 'moved' && item.title.startsWith('Shortened ') && item.durationMins <= 60);
+  assert.ok(changed);
+  assert.deepEqual(updated.itinerary.filter((item) => item.day === 1).map((item) => ({ id: item.id, title: item.title, durationMins: item.durationMins })), dayOne);
+});
+
+test('every disruption updates only the selected Tokyo day and keeps the sequence time-sorted', () => {
+  for (const type of ['late', 'rain', 'flight-delay', 'closed', 'tired'] as const) {
+    const store = new DemoStore();
+    const before = store.getTrip().itinerary.map((item) => ({ id: item.id, day: item.day, time: item.time, title: item.title, status: item.status }));
+    const updated = store.replan(type, 3);
+    const changed = updated.itinerary.filter((item) => {
+      const previous = before.find((candidate) => candidate.id === item.id);
+      return previous && (previous.day !== item.day || previous.time !== item.time || previous.title !== item.title || previous.status !== item.status);
+    });
+    assert.ok(changed.length > 0, `${type} should update at least one stop`);
+    assert.ok(changed.every((item) => item.day === 3), `${type} should not update another day`);
+    const dayThreeTimes = updated.itinerary.filter((item) => item.day === 3).map((item) => item.time);
+    assert.deepEqual(dayThreeTimes, [...dayThreeTimes].sort());
+  }
+});
+
+test('preference approval never moves breakfast, lunch, or dinner out of their meal windows', () => {
+  const store = new DemoStore();
+  const request = store.getTrip().request;
+  const places: PlaceAttraction[] = Array.from({ length: 10 }, (_, index) => ({
+    id: `place-${index}`,
+    name: index % 2 ? `Restaurant ${index}` : `Attraction ${index}`,
+    address: `Tokyo stop ${index}`,
+    category: index % 2 ? 'food' : 'culture',
+  }));
+  store.updateFromRequest(request, places, 'Tokyo with culture and food for four friends');
+  store.completeSimulatedPrabhuInterview();
+  const updated = store.applyPreferenceDecision({ culture: 5, history: 5, food: 5, photography: 3, shopping: 2, nightlife: 2, nature: 3 });
+  for (const item of updated.itinerary) {
+    if (item.title.startsWith('Breakfast')) assert.equal(item.time, '08:00');
+    if (item.title.startsWith('Lunch')) assert.equal(item.time, '12:30');
+    if (item.title.startsWith('Dinner')) assert.equal(item.time, '19:00');
+  }
+});
+
+test('hydration repairs previously saved meal times without resetting the trip', () => {
+  const store = new DemoStore();
+  const saved = store.getTrip();
+  const dinner = saved.itinerary.find((item) => item.category === 'food' && item.title.toLowerCase().includes('dinner'));
+  assert.ok(dinner);
+  dinner.title = `Dinner · ${dinner.title}`;
+  dinner.time = '12:30';
+  store.hydrate(saved);
+  assert.equal(store.getTrip().itinerary.find((item) => item.id === dinner.id)?.time, '19:00');
+});
+
+test('contextual itinerary commands target the selected day and can be undone', () => {
+  const store = new DemoStore();
+  const before = store.getTrip();
+  const dayThree = before.itinerary.filter((item) => item.day === 3).sort((a, b) => a.time.localeCompare(b.time));
+  const completed = store.applyItineraryCommand('I saw place 2, mark it complete', 3);
+  assert.equal(completed.trip.itinerary.find((item) => item.id === dayThree[1].id)?.status, 'completed');
+  assert.equal(completed.affectedStopIds[0], dayThree[1].id);
+  const restored = store.applyItineraryCommand('undo place 2', 3);
+  assert.equal(restored.trip.itinerary.find((item) => item.id === dayThree[1].id)?.status, 'upcoming');
+  assert.equal(restored.trip.itinerary.find((item) => item.id === dayThree[0].id)?.status, before.itinerary.find((item) => item.id === dayThree[0].id)?.status);
+});
+
+test('discovers a live conflict, negotiates it, and applies it only after admin approval', () => {
+  const store = new DemoStore();
+  const prabhu = store.getTrip().travelers.find((traveler) => traveler.name === 'Prabhu');
+  assert.ok(prabhu);
+  const started = store.startNegotiation(prabhu.id, 'mock');
+  const agreement = started.preferenceCollection?.agreement;
+  assert.equal(agreement?.status, 'calling');
+  assert.equal(agreement?.travelerName, prabhu.name);
+  assert.match(agreement?.conflict ?? '', /waiting to hear/i);
+  assert.equal(agreement?.itineraryChanges.length, 0);
+  assert.equal(started.preferenceCollection?.calls.filter((call) => call.status === 'completed').length, 2);
+
+  const accepted = store.completeNegotiation({ travelerId: prabhu.id, accepted: true, statedPreference: 'I want a late live music experience', travelerResponse: 'Yes, that works for me.' });
+  const resolvedAgreement = accepted.preferenceCollection?.agreement;
+  assert.equal(resolvedAgreement?.status, 'accepted');
+  assert.notEqual(resolvedAgreement?.counterpartId, prabhu.id);
+  assert.match(resolvedAgreement?.conflict ?? '', new RegExp(`${prabhu.name}.*${resolvedAgreement?.counterpartName}`, 'i'));
+  assert.ok((resolvedAgreement?.afterHappiness ?? 0) > (resolvedAgreement?.beforeHappiness ?? 0));
+  assert.equal(accepted.groupPreference.groupHappiness, resolvedAgreement?.afterHappiness);
+  assert.equal(resolvedAgreement?.itineraryChanges.some((change) => accepted.itinerary.some((item) => item.id === change.id)), false);
+
   const applied = store.applyNegotiation();
   assert.equal(applied.preferenceCollection?.agreement?.status, 'applied');
-  assert.ok(applied.itinerary.length > beforeCount);
-});
-
-test('applies page-aware voice commands only to the selected itinerary day', () => {
-  const store = new DemoStore();
-  const target = store.getTrip().itinerary.find((item) => item.day === 2);
-  assert.ok(target);
-  const result = store.applyItineraryCommand('mark stop 1 complete', 2);
-  assert.equal(result.affectedStopIds[0], target.id);
-  assert.equal(result.trip.itinerary.find((item) => item.id === target.id)?.status, 'completed');
-  const restored = store.applyItineraryCommand('undo stop 1', 2);
-  assert.equal(restored.trip.itinerary.find((item) => item.id === target.id)?.status, 'upcoming');
+  for (const change of resolvedAgreement?.itineraryChanges ?? []) {
+    const item = applied.itinerary.find((candidate) => candidate.id === change.id);
+    assert.equal(item?.day, resolvedAgreement?.affectedDay);
+    assert.equal(item?.time, change.time);
+    assert.equal(item?.title, change.title);
+  }
 });

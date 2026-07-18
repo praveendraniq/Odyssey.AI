@@ -1,39 +1,43 @@
-import { useState } from 'react';
-import { BatteryLow, Bot, CircleOff, CloudRain, PlaneLanding, Sparkles, X, Zap } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { BatteryLow, CheckCircle2, Clock3, CloudRain, MapPinOff, Plane, Sparkles } from 'lucide-react';
 import { api } from '../api';
 import type { ReplanType, Trip } from '../types';
 
-const events: Array<{ type: ReplanType; label: string; detail: string; icon: typeof Zap; color: string }> = [
-  { type: 'late', label: 'Running late', detail: '+90 minutes', icon: Zap, color: 'bg-amber-50 text-amber-900 border-amber-200' },
-  { type: 'rain', label: 'Heavy rain', detail: 'Outdoor plans affected', icon: CloudRain, color: 'bg-sky-50 text-sky-900 border-sky-200' },
-  { type: 'flight-delay', label: 'Flight delay', detail: '+2 hours', icon: PlaneLanding, color: 'bg-indigo-50 text-indigo-900 border-indigo-200' },
-  { type: 'closed', label: 'Attraction closed', detail: 'Find a nearby match', icon: CircleOff, color: 'bg-rose-50 text-rose-900 border-rose-200' },
-  { type: 'tired', label: 'Traveler tired', detail: 'Reduce walking', icon: BatteryLow, color: 'bg-teal-50 text-teal-900 border-teal-200' },
+const choices: Array<{ type: ReplanType; label: string; detail: string; icon: typeof Clock3; tone: string }> = [
+  { type: 'late', label: 'Running late', detail: 'Shift what still fits', icon: Clock3, tone: 'bg-amber-50 text-amber-800 ring-amber-200' },
+  { type: 'rain', label: 'Heavy rain', detail: 'Favor indoor stops', icon: CloudRain, tone: 'bg-sky-50 text-sky-800 ring-sky-200' },
+  { type: 'flight-delay', label: 'Flight delay', detail: 'Protect arrival day', icon: Plane, tone: 'bg-indigo-50 text-indigo-800 ring-indigo-200' },
+  { type: 'closed', label: 'Place closed', detail: 'Find a nearby match', icon: MapPinOff, tone: 'bg-rose-50 text-rose-800 ring-rose-200' },
+  { type: 'tired', label: 'Feeling tired', detail: 'Reduce pace and travel', icon: BatteryLow, tone: 'bg-teal-50 text-teal-800 ring-teal-200' },
 ];
 
 export function DisruptionDemo({ trip, activeDay, onTrip }: { trip: Trip; activeDay: number; onTrip: (trip: Trip, note: string) => void }) {
-  const [open, setOpen] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [decision, setDecision] = useState<{ title: string; explanation: string; changedStops: string[] } | null>(null);
+  const [busy, setBusy] = useState<ReplanType | null>(null);
+  const [result, setResult] = useState<{ type: ReplanType; day: number; title: string; changed: Array<{ title: string; time: string }> } | null>(null);
+
+  // A result belongs to one itinerary day. Do not leave a Day 1 confirmation
+  // visible when the admin moves to Day 2.
+  useEffect(() => setResult(null), [activeDay]);
 
   const apply = async (type: ReplanType) => {
-    setBusy(true);
+    setBusy(type);
     try {
-      const before = new Map(trip.itinerary.map((item) => [item.id, `${item.time}|${item.title}|${item.status}`]));
+      const before = new Map(trip.itinerary.map((item) => [item.id, `${item.time}|${item.title}|${item.subtitle}|${item.status}`]));
       const response = await api.replan(type, trip, activeDay);
-      const changedStops = response.trip.itinerary.filter((item) => before.get(item.id) !== `${item.time}|${item.title}|${item.status}`).map((item) => item.title).slice(0, 3);
-      onTrip(response.trip, `${response.event.title} applied. The route and timeline are updated.`);
-      setDecision({ title: response.event.title, explanation: response.event.explanation, changedStops });
-    } catch (error) { onTrip(trip, error instanceof Error ? error.message : 'Could not simulate the disruption.'); }
-    finally { setBusy(false); }
+      const changed = response.trip.itinerary
+        .filter((item) => item.day === activeDay && before.get(item.id) !== `${item.time}|${item.title}|${item.subtitle}|${item.status}`)
+        .sort((left, right) => left.time.localeCompare(right.time))
+        .map((item) => ({ title: item.title, time: item.time }));
+      setResult({ type, day: activeDay, title: response.event.title, changed });
+      onTrip(response.trip, `${response.event.title}. Day ${activeDay} and its optimized sequence were updated.`);
+    } catch (error) {
+      onTrip(trip, error instanceof Error ? error.message : 'Could not re-optimize this day.');
+    } finally { setBusy(null); }
   };
 
-  return <>
-    <section className="mt-6 flex flex-col justify-between gap-4 rounded-[24px] border border-coral/20 bg-[#fff8e9] p-5 sm:flex-row sm:items-center"><div><p className="eyebrow text-coral">Demo mode</p><h2 className="mt-1 text-xl font-bold text-ink">Show how the trip adapts when travel changes.</h2><p className="mt-1 text-sm text-stone-600">Open a small disruption panel, choose one event, and watch the itinerary update behind it.</p></div><button onClick={() => { setDecision(null); setOpen(true); }} className="shrink-0 rounded-xl bg-ink px-5 py-3 text-sm font-bold text-white"><Zap className="mr-2 inline" size={16} />Demo disruptions</button></section>
-    {(open || decision) && <div className="fixed inset-0 z-[70] bg-ink/25" onClick={() => { setOpen(false); setDecision(null); }} aria-hidden="true" />}
-    {(open || decision) && <aside className="fixed inset-y-0 right-0 z-[80] w-full max-w-sm overflow-y-auto bg-white p-6 shadow-2xl" aria-label={decision ? 'AI decision explanation' : 'Demo disruption choices'}><div className="flex items-start justify-between gap-3"><div>{decision ? <><p className="eyebrow text-moss">AI decision</p><h2 className="mt-1 text-2xl font-bold text-ink">Here’s what changed—and why.</h2></> : <><p className="eyebrow text-coral">Demo disruptions</p><h2 className="mt-1 text-2xl font-bold text-ink">What just happened?</h2></>}</div><button aria-label="Close disruption panel" onClick={() => { setOpen(false); setDecision(null); }} className="grid h-9 w-9 place-items-center rounded-full bg-stone-100 text-stone-600"><X size={17} /></button></div>
-      {decision ? <div className="mt-8"><div className="grid h-12 w-12 place-items-center rounded-2xl bg-moss text-white"><Bot /></div><h3 className="mt-5 text-xl font-bold text-ink">{decision.title}</h3><p className="mt-3 border-l-2 border-coral pl-4 text-base leading-7 text-stone-700">{decision.explanation}</p><div className="mt-6 rounded-2xl bg-[#eff6f1] p-4"><p className="text-xs font-bold uppercase tracking-wider text-moss">Trip plan updated</p>{decision.changedStops.length ? <ul className="mt-3 space-y-2">{decision.changedStops.map((stop) => <li className="flex gap-2 text-sm text-ink" key={stop}><Sparkles size={15} className="mt-0.5 shrink-0 text-coral" />{stop}</li>)}</ul> : <p className="mt-2 text-sm text-stone-600">Timing and route protections were recalculated.</p>}</div><button onClick={() => { setOpen(false); setDecision(null); }} className="mt-6 w-full rounded-xl bg-moss px-4 py-3 text-sm font-bold text-white">View updated trip plan</button><button onClick={() => { setDecision(null); setOpen(true); }} className="mt-3 w-full rounded-xl border border-moss px-4 py-3 text-sm font-bold text-moss">Try another disruption</button></div>
-        : <div className="mt-6 space-y-3">{events.map(({ type, label, detail, icon: Icon, color }) => <button disabled={busy} onClick={() => void apply(type)} key={type} className={`flex w-full items-center gap-3 rounded-2xl border p-4 text-left disabled:opacity-50 ${color}`}><span className="grid h-10 w-10 place-items-center rounded-xl bg-white/70"><Icon size={20} /></span><span><b className="block text-sm">{label}</b><small className="mt-1 block opacity-70">{detail}</small></span></button>)}</div>}
-    </aside>}
-  </>;
+  return <section className="mt-6 rounded-[26px] border border-stone-200 bg-white p-5 sm:p-6">
+    <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-end"><div><p className="eyebrow text-coral">Something changed?</p><h2 className="mt-1 text-xl font-bold text-ink">Re-optimize Day {activeDay}</h2><p className="mt-1 text-sm text-stone-500">Choose one quick demo event. The updated optimized plan appears directly below.</p></div><Sparkles className="hidden text-coral sm:block" /></div>
+    <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">{choices.map(({ type, label, detail, icon: Icon, tone }) => <button key={type} disabled={Boolean(busy)} onClick={() => void apply(type)} className={`group rounded-2xl p-3 text-left ring-1 transition hover:-translate-y-0.5 hover:shadow-sm disabled:opacity-50 ${tone}`}><span className="grid h-9 w-9 place-items-center rounded-xl bg-white/80"><Icon size={18} className={busy === type ? 'animate-pulse' : ''} /></span><b className="mt-3 block text-sm">{busy === type ? 'Updating…' : label}</b><span className="mt-0.5 block text-[11px] opacity-70">{detail}</span></button>)}</div>
+    {result && <div role="status" aria-live="polite" className="mt-4 rounded-2xl border border-emerald-200 bg-[#eff6f1] p-4"><div className="flex gap-3"><CheckCircle2 className="mt-0.5 shrink-0 text-moss" size={19} /><div><p className="text-sm font-bold text-ink">Applied to Day {result.day} · {result.title}</p><p className="mt-1 text-xs leading-5 text-stone-600">The optimized sequence directly below is now refreshed and time-sorted.</p></div></div>{result.changed.length > 0 && <ol className="mt-3 space-y-1 border-t border-emerald-200 pt-3 text-xs text-stone-700">{result.changed.map((item) => <li key={`${item.time}-${item.title}`}><b className="mr-2 text-moss">{item.time}</b>{item.title}</li>)}</ol>}</div>}
+  </section>;
 }

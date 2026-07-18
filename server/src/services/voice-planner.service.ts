@@ -4,24 +4,25 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
 const run = promisify(execFile);
+const hasVocalBridgeCli = async () => {
+  try {
+    await run('vb', ['--version'], { timeout: 5_000 });
+    return true;
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    if (/ENOENT|not recognized|not found/i.test(detail)) return false;
+    throw error;
+  }
+};
+
+const defaultRequest: TripRequest = {
+  origin: 'San Francisco', destination: 'Tokyo', departureDate: '2026-10-12', returnDate: '2026-10-16', duration: 5, travelers: 4, budget: 6000,
+  travelStyle: 'culture-forward, unhurried', foodPreferences: ['sushi', 'vegetarian friendly'],
+  interests: ['culture', 'history', 'food', 'photography'],
+};
 
 const numberWords: Record<string, number> = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 };
 const toNumber = (value: string) => /^\d+$/.test(value) ? Number(value) : numberWords[value.toLowerCase()] ?? 0;
-const spokenAmount = (input: string | undefined): number => {
-  if (!input) return 0;
-  const digits = input.match(/\$?([\d,]+)/)?.[1];
-  if (digits) return Number(digits.replace(/,/g, ''));
-  const small: Record<string, number> = { zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19, twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80, ninety: 90 };
-  let total = 0;
-  let group = 0;
-  for (const token of input.toLowerCase().replace(/-/g, ' ').split(/\s+/)) {
-    if (small[token] !== undefined) group += small[token];
-    else if (token === 'hundred') group = Math.max(1, group) * 100;
-    else if (token === 'thousand') { total += Math.max(1, group) * 1000; group = 0; }
-    else if (token === 'million') { total += Math.max(1, group) * 1_000_000; group = 0; }
-  }
-  return total + group;
-};
 const addDays = (date: string, days: number) => {
   const value = new Date(`${date}T12:00:00Z`);
   value.setUTCDate(value.getUTCDate() + days);
@@ -46,47 +47,6 @@ const readDate = (value: string): string | undefined => {
   return Number.isFinite(parsed.getTime()) ? parsed.toISOString().slice(0, 10) : undefined;
 };
 
-const spokenCity = (value: string | undefined): string | undefined => {
-  if (!value) return undefined;
-  const cleaned = value.trim().replace(/\s+/g, ' ');
-  const words = cleaned.split(' ');
-  if (cleaned.length > 60 || words.length > 7 || /\d/.test(cleaned)) return undefined;
-  if (!words.every((word) => /^[a-z][a-z'-]*$/i.test(word))) return undefined;
-  return words.map((word) => word.replace(/^\w/, (letter) => letter.toUpperCase())).join(' ');
-};
-
-const spokenRoute = (value: string): { origin?: string; destination?: string } => {
-  const route = value.match(/\bfrom\s+([a-z][a-z '-]*?)\s+to\s+([a-z][a-z '-]*?)(?=\s+(?:for|on|between|departing|leaving|with|under|and)\b|[,.]|$)/i);
-  if (route) return { origin: spokenCity(route[1]), destination: spokenCity(route[2]) };
-  const origin = value.match(/(?:origin|departure city)(?:\s+is|\s*:)?\s+([a-z][a-z '-]*?)(?=\s+(?:and|destination|on|for)\b|[,.]|$)/i)?.[1]
-    ?? value.match(/(?:departing|leaving|flying)\s+from\s+([a-z][a-z '-]*?)(?=\s+(?:on|for|and|between|with)\b|[,.]|$)/i)?.[1];
-  const destination = value.match(/destination(?:\s+city)?(?:\s+is|\s*:)?\s+([a-z][a-z '-]*?)(?=\s+(?:and|origin|on|for)\b|[,.]|$)/i)?.[1]
-    ?? value.match(/\bto\s+([a-z][a-z '-]*?)(?=\s+(?:departing|leaving|for|with|on|between)\b|[,.]|$)/i)?.[1];
-  return { origin: spokenCity(origin), destination: spokenCity(destination) };
-};
-
-export const tripRequestMissingFields = (request: TripRequest): string[] => [
-  ...(!request.origin ? ['origin'] : []),
-  ...(!request.destination ? ['destination'] : []),
-  ...(!(request.departureDate && request.returnDate) ? ['exact departure and return dates'] : []),
-  ...(!(request.travelers > 0) ? ['total traveler count'] : []),
-  ...(!(request.budget > 0) ? ['total group budget'] : []),
-  ...(!request.interests.length ? ['places of interest or activities'] : []),
-  ...(!request.travelStyle ? ['preferred pace'] : []),
-  ...(!request.foodPreferences.length ? ['food preferences or dietary requirements'] : []),
-];
-
-export const mergeStructuredTripRequest = (extracted: TripRequest, structured: Partial<TripRequest> = {}): TripRequest => {
-  const request: TripRequest = {
-    ...extracted,
-    ...structured,
-    interests: structured.interests?.length ? structured.interests : extracted.interests,
-    foodPreferences: structured.foodPreferences?.length ? structured.foodPreferences : extracted.foodPreferences,
-  };
-  if (request.departureDate && request.returnDate) request.duration = dayCount(request.departureDate, request.returnDate, request.duration);
-  return request;
-};
-
 /**
  * Keeps the UI productive without an external model while matching the shape
  * of an eventual Vocal Bridge structured conversation response.
@@ -103,8 +63,7 @@ export class VocalBridgeService {
       throw new Error(`Could not place ${traveler.name}'s negotiation call: ${detail}`);
     }
   }
-
-  async callMayaAgent(): Promise<void> {
+  async callPrabhuAgent(): Promise<void> {
     if (!config.vocalBridge.mayaPhone) throw new Error('Maya’s Vocal Bridge phone number is not configured.');
     try {
       // The currently selected `vb` CLI agent is the JourneyOS main agent. It
@@ -117,55 +76,44 @@ export class VocalBridgeService {
     }
   }
 
-  async extractTrip(conversation: string): Promise<{ request: TripRequest; source: 'mock' | 'vocal-bridge'; confidence: number; missingFields: string[] }> {
+  async extractTrip(conversation: string): Promise<{ request: TripRequest; source: 'mock' | 'vocal-bridge'; confidence: number }> {
     // Vocal Bridge supplies the live voice session and transcript through WebRTC.
     // Its public API does not expose a conversation-extraction endpoint, so JourneyOS
     // structures that transcript locally instead of making a failing remote request.
     const value = conversation.toLowerCase();
-    // Begin with an empty brief. Seed inventory belongs to the demo store and
-    // must never leak into a new voice transcript as an invented Japan trip.
-    const request: TripRequest = {
-      origin: undefined,
-      destination: '',
-      departureDate: undefined,
-      returnDate: undefined,
-      duration: 0,
-      travelers: 0,
-      budget: 0,
-      travelStyle: '',
-      foodPreferences: [],
-      interests: [],
-    };
-    const { destination, origin } = spokenRoute(value);
-    if (destination) request.destination = destination;
-    if (origin) request.origin = origin;
+    const request = structuredClone(defaultRequest);
+    const destinationMatch = value.match(/(?:trip|travel(?:ing)?|going|fly(?:ing)?|heading)\s+to\s+([a-z][a-z '-]+?)(?:\s+(?:for|under|with|from|during|and|this|next|on|leaving|departing)\b|[.,]|$)|(?:visit(?:ing)?|destination is)\s+([a-z][a-z '-]+?)(?:\s+(?:for|under|with|from|during|and|this|next|on)\b|[.,]|$)/i)?.slice(1).find(Boolean)?.trim();
+    const knownDestination = ['chennai', 'china', 'japan', 'kyoto', 'tokyo', 'bali', 'thailand', 'bangkok', 'paris', 'france', 'italy', 'rome', 'spain', 'london', 'greece', 'mexico', 'india', 'singapore', 'australia', 'new zealand'].find((place) => new RegExp(`\\b${place}\\b`, 'i').test(value));
+    const destinationPhrase = value.match(/(?:plan|book|create|make)\s+(?:me\s+)?(?:a\s+)?(?:trip\s+)?(?:to\s+)?([a-z][a-z '-]+?)(?=\s+(?:for|under|with|from|during|and|this|next|on|leaving|departing)\b|[.,]|$)/i)?.[1]?.trim();
+    const bareDestination = /^[a-z][a-z '-]{1,30}$/i.test(conversation.trim()) ? conversation.trim() : undefined;
+    // Prefer a recognized destination over a broad phrase such as "things to do in Tokyo".
+    const destinationLooksLikePreference = !destinationMatch || destinationMatch.length > 40 || /\b(see|place|young|people|traveler|vegetarian|budget|prefer|want|like|pace|food|activity|possible)\b/i.test(destinationMatch);
+    const destination = knownDestination ?? (destinationLooksLikePreference ? destinationPhrase ?? bareDestination : destinationMatch);
+    if (destination) request.destination = destination.replace(/\b\w/g, (letter) => letter.toUpperCase());
+    const originMatch = value.match(/(?:from|leaving|departing from)\s+([a-z][a-z '-]+?)(?=\s+(?:to|on|for|departing|leaving)\b|[,.]|$)/i)?.[1]?.trim();
+    if (originMatch) request.origin = originMatch.replace(/\b\w/g, (letter) => letter.toUpperCase());
     const departing = value.match(/(?:depart(?:ing|ure)?|leave|leaving|start(?:ing)?)\s*(?:on)?\s*([^,.]+?)(?=\s+(?:and\s+)?(?:return|coming back|back on|until)\b|[,.]|$)/i)?.[1];
     const returning = value.match(/(?:return|coming back|back)\s*(?:on)?\s*([^,.]+?)(?=[,.]|$)/i)?.[1];
     const dateMatches = [...value.matchAll(/\b(?:20\d{2}-\d{2}-\d{2}|(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2}(?:st|nd|rd|th)?(?:,?\s*20\d{2})?)\b/gi)]
       .map((match) => readDate(match[0]))
       .filter((date): date is string => Boolean(date));
-    const departureDate = dateMatches[0] ?? (departing ? readDate(departing) : undefined) ?? readDate(value);
-    const returnDate = dateMatches[1] ?? (returning ? readDate(returning) : undefined);
+    const departureDate = departing ? readDate(departing) : dateMatches[0] ?? readDate(value);
+    const returnDate = returning ? readDate(returning) : dateMatches[1];
     if (departureDate) request.departureDate = departureDate;
     if (returnDate) request.returnDate = returnDate;
     const duration = value.match(/(\d+|one|two|three|four|five|six|seven|eight|nine|ten)[ -]?day/);
     if (duration) request.duration = toNumber(duration[1]);
+    if (request.departureDate && !request.returnDate) request.returnDate = addDays(request.departureDate, Math.max(1, request.duration - 1));
     if (request.departureDate && request.returnDate) {
       request.duration = dayCount(request.departureDate, request.returnDate, request.duration);
       request.returnDate = addDays(request.departureDate, request.duration - 1);
     }
-    const people = value.match(/(?:for|with)\s+(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+(?:people|travelers|friends|adults)/)
-      ?? value.match(/\b(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+(?:people|travelers|friends|adults)\b/);
-    const travelerAnswer = value.match(/agent:[^.!?]*(?:how many|traveler count|people traveling)[^?]*\?\s*user:\s*([^.!?]+)/i)?.[1];
+    const people = value.match(/(?:for|with)\s+(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+(?:people|travelers|friends|adults)/);
     if (people) request.travelers = toNumber(people[1]);
-    else if (travelerAnswer) request.travelers = spokenAmount(travelerAnswer);
     const budget = value.match(/(?:under|budget(?:\s+of)?|\$)\s*\$?([\d,]+)(?:k|000)?/);
     if (budget) {
       const raw = Number(budget[1].replace(/,/g, ''));
       request.budget = value.includes(`${budget[1]}k`) ? raw * 1000 : raw;
-    } else {
-      const budgetAnswer = value.match(/agent:[^.!?]*(?:total|group)?\s*budget[^?]*\?\s*user:\s*([^.!?]+)/i)?.[1];
-      request.budget = spokenAmount(budgetAnswer);
     }
     const interests: Array<[Interest, RegExp]> = [
       ['culture', /culture|temple|shrine|traditional/], ['history', /history|historic|museum/], ['food', /food|sushi|restaurant|culinary/],
@@ -173,14 +121,9 @@ export class VocalBridgeService {
     ];
     const extracted = interests.filter(([, pattern]) => pattern.test(value)).map(([interest]) => interest);
     if (extracted.length) request.interests = extracted;
-    const paceAnswer = value.match(/agent:[^.!?]*(?:pace|easy, balanced, or active)[^?]*\?\s*user:\s*([^.!?]+)/i)?.[1] ?? value;
-    if (/slow|relax|easy/.test(paceAnswer)) request.travelStyle = 'slow, restorative';
-    else if (/fast|packed|adventure|active/.test(paceAnswer)) request.travelStyle = 'high-energy exploration';
-    else if (/balanced|moderate/.test(paceAnswer)) request.travelStyle = 'balanced';
-    const statedFood = value.match(/food preferences?(?:\s+are|\s*:)?\s+([^.!?]+)/i)?.[1]?.trim();
-    if (statedFood) request.foodPreferences = statedFood.split(/,|\band\b/i).map((food) => food.trim()).filter(Boolean).slice(0, 6);
-    else if (/vegetarian|vegan/.test(value)) request.foodPreferences = ['vegetarian friendly'];
-    else if (/no (?:food|dietary) (?:preference|restriction)s?|no food requirements?/i.test(value)) request.foodPreferences = ['no dietary restrictions'];
+    if (/slow|relax|easy/.test(value)) request.travelStyle = 'slow, restorative';
+    if (/fast|packed|adventure/.test(value)) request.travelStyle = 'high-energy exploration';
+    if (/vegetarian|vegan/.test(value)) request.foodPreferences = ['vegetarian friendly', ...request.foodPreferences.filter((food) => food !== 'vegetarian friendly')];
     const confidence = Math.min(0.97, 0.58
       + (destination ? 0.1 : 0)
       + (duration ? 0.08 : 0)
@@ -188,8 +131,7 @@ export class VocalBridgeService {
       + (budget ? 0.07 : 0)
       + (extracted.length ? 0.05 : 0)
       + (/vegetarian|vegan|allergy|shellfish|gluten/.test(value) ? 0.03 : 0));
-    const missingFields = tripRequestMissingFields(request);
-    return { request, source: 'mock', confidence: Number(confidence.toFixed(2)), missingFields };
+    return { request, source: 'mock', confidence: Number(confidence.toFixed(2)) };
   }
 
   async collectPreferences(input: { adminName: string; adminPhone: string; phones: Record<string, string>; travelers: Traveler[]; destination: string }): Promise<PreferenceCollection> {
@@ -197,8 +139,9 @@ export class VocalBridgeService {
     // not a reliable way to decide who should receive a preference call.
     const participants = input.travelers.slice(1);
     if (!participants.length) throw new Error('Add at least one friend before starting preference calls.');
-    if (!config.mockMode && config.vocalBridge.apiKey && config.vocalBridge.agentId) {
+    if (!config.mockMode && config.vocalBridge.apiKey && config.vocalBridge.agentId && await hasVocalBridgeCli()) {
       const calls: PreferenceCollection['calls'] = [];
+      let useScriptedFallback = false;
       // Start one outbound interview only after the previous call request has
       // returned. This prevents every friend being dialed at once and keeps
       // the preference collector in a clear, admin-controlled sequence.
@@ -212,11 +155,14 @@ export class VocalBridgeService {
           calls.push({ travelerId: traveler.id, name: traveler.name, phone, status: 'queued', summary: 'Outbound preference call queued. JourneyOS will use the completed call transcript for the group proposal.', happiness: 0, topPriorities: [], compromise: 'Waiting for the traveler’s call.' });
         } catch (error) {
           const detail = error instanceof Error ? error.message : 'Unknown outbound call error';
-          if (/ENOENT/.test(detail)) throw new Error('Vocal Bridge CLI is not installed on this computer. Install it with: pip install vocal-bridge, then run vb auth login and vb agent use.');
+          if (!calls.length && /ENOENT|not recognized|not found|daily outbound call limit/i.test(detail)) {
+            useScriptedFallback = true;
+            break;
+          }
           throw new Error(`Could not start ${traveler.name}'s Vocal Bridge call: ${detail}`);
         }
       }
-      return {
+      if (!useScriptedFallback) return {
         adminName: input.adminName,
         adminWeight: 1.5,
         source: 'vocal-bridge',
