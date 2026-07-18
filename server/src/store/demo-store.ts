@@ -749,6 +749,8 @@ export class DemoStore {
       }
       const update = updates[type];
       this.trip.events.unshift({ id: `event-${Date.now()}`, type, title: update.title, createdAt: new Date().toISOString(), explanation: update.explanation });
+      this.normalizeMealWindows();
+      this.trip.itinerary.sort((left, right) => left.day - right.day || left.time.localeCompare(right.time));
       return this.getTrip();
     }
     const activeFlexibleStop = () => this.trip.itinerary.find((item) =>
@@ -771,23 +773,26 @@ export class DemoStore {
       },
       rain: {
         title: 'Heavy rain forecast',
-        explanation: 'Outdoor Arashiyama moved to the dry Day 5 morning. Kyoto National Museum replaces it on Day 3 because it is 18 minutes from the hotel and matches the group’s culture and history priorities.',
+        explanation: `JourneyOS replaced an outdoor stop on Day ${activeDay ?? 1} with an indoor alternative, preserving the group’s interests and the selected day’s route.`,
         mutate: () => {
-          this.move('i-arashiyama', 5, '14:00', 'moved');
-          if (!this.trip.itinerary.some((item) => item.id === 'i-museum')) this.trip.itinerary.push(route('i-museum', 3, '13:00', 'Kyoto National Museum', 'Higashiyama · Kyoto', 'museum', 115, 18, 51, 45, 'moved'));
+          const item = activeFlexibleStop();
+          if (item) Object.assign(item, { title: `Indoor alternative · ${item.title}`, category: 'museum' as const, weatherSensitive: false, status: 'moved' as const });
         },
       },
       'flight-delay': {
         title: 'Flight delayed by 4 hours',
-        explanation: 'Hotel check-in was held for the four-hour delay and the first evening is now a short vegetarian-friendly Kanda dinner. Sensō-ji moved to tomorrow’s golden hour, when the transit time is 12 minutes shorter.',
-        mutate: () => this.move('i-sensoji', 2, '17:30', 'moved'),
+        explanation: `JourneyOS shortened the selected Day ${activeDay ?? 1} plan for the delayed arrival and preserved the remaining fixed commitments.`,
+        mutate: () => {
+          const item = activeFlexibleStop();
+          if (item) Object.assign(item, { title: `Delayed-arrival version · ${item.title}`, durationMins: Math.min(item.durationMins, 60), travelMins: Math.min(item.travelMins, 20), status: 'moved' as const });
+        },
       },
       closed: {
         title: 'Attraction closed',
-        explanation: 'Kiyomizu-dera is closed for maintenance. We substituted Ginkaku-ji, a culturally similar temple with available morning entry and no extra route backtracking.',
+        explanation: `JourneyOS replaced the unavailable Day ${activeDay ?? 1} stop with a nearby option that preserves the group’s priorities and route order.`,
         mutate: () => {
-          const item = this.trip.itinerary.find((entry) => entry.id === 'i-kiyomizu');
-          if (item) Object.assign(item, { title: 'Ginkaku-ji Silver Pavilion', subtitle: 'Sakyō · Kyoto', location: { x: 38, y: 29 }, status: 'moved' });
+          const item = activeFlexibleStop();
+          if (item) Object.assign(item, { title: `Nearby replacement · ${item.title}`, status: 'moved' as const });
         },
       },
       tired: {

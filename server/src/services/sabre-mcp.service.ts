@@ -12,6 +12,8 @@ export type SabreLiveSearch = { flights: unknown; hotels: unknown };
 export class SabreMcpService {
   private requestId = 0;
 
+  constructor(private readonly tokenProvider?: () => Promise<string>) {}
+
   async searchTrip(input: { origin: string; destination: string; departureDate: string; returnDate: string; adults: number }): Promise<SabreLiveSearch> {
     const conversationId = await this.beginConversation();
     await this.loadSkill('search-flights', [
@@ -61,7 +63,6 @@ export class SabreMcpService {
   }
 
   private async beginConversation(): Promise<string> {
-    if (!config.sabre.accessToken) throw new Error('Sabre access token is not configured on the server.');
     await this.call('initialize', { protocolVersion: '2025-03-26', capabilities: {}, clientInfo: { name: 'journeyos', version: '0.1.0' } });
     const guide = await this.tool('use-sabre-mcp-server-guidelines', {});
     const text = this.contentText(guide);
@@ -81,9 +82,11 @@ export class SabreMcpService {
   }
 
   private async call(method: string, params: Record<string, unknown>): Promise<JsonRpcResponse> {
+    const token = config.sabre.accessToken ?? await this.tokenProvider?.();
+    if (!token) throw new Error('Sabre CERT credentials are not configured on the server.');
     const response = await fetch(config.sabre.mcpUrl, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${config.sabre.accessToken}`, 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' },
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' },
       body: JSON.stringify({ jsonrpc: '2.0', id: ++this.requestId, method, params }),
     });
     const body = await response.json().catch(() => ({})) as JsonRpcResponse;

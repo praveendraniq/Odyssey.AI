@@ -46,11 +46,6 @@
   box-shadow: 0 0 0 2px rgba(220, 76, 63, 0.12);
 }
 
-/* Variable expenses and settlement now have their own top-level workspace. */
-section[class*="rounded-[24px]"][class*="border-stone-200"][class*="p-5"] {
-  display: none;
-}
-
 @layer base {
   * { @apply border-stone-200; }
   body { @apply m-0 bg-cream font-sans antialiased; font-family: 'Manrope', sans-serif; }
@@ -71,3 +66,58 @@ section[class*="rounded-[24px]"][class*="border-stone-200"][class*="p-5"] {
   .soft-stat > strong { @apply mt-1 block text-sm font-bold text-ink; }
   .paper-grid { background-image: linear-gradient(rgba(36,91,79,.055) 1px, transparent 1px), linear-gradient(90deg, rgba(36,91,79,.055) 1px, transparent 1px); background-size: 22px 22px; }
 }
+
+.mood-face { position: relative; display: inline-block; width: 3rem; height: 3rem; flex: 0 0 auto; overflow: hidden; border: 2px solid currentColor; border-radius: 9999px; background: radial-gradient(circle at 35% 25%, rgba(255,255,255,.95), rgba(255,255,255,.45) 58%, rgba(255,255,255,.12)); box-shadow: inset 0 -5px 10px rgba(255,255,255,.25), 0 6px 14px rgba(26, 80, 57, .12); transform-origin: center bottom; will-change: transform; animation: mood-float 2.8s ease-in-out infinite; }
+.mood-face--small { width: 1.35rem; height: 1.35rem; border-width: 1.5px; animation-duration: 3.4s; }
+.mood-face__eye { position: absolute; top: 31%; width: 9%; height: 13%; border-radius: 9999px; background: currentColor; animation: mood-blink 4.5s infinite; }
+.mood-face__eye--left { left: 28%; }
+.mood-face__eye--right { right: 28%; }
+.mood-face__mouth { position: absolute; left: 25%; bottom: 20%; width: 50%; height: 25%; border-bottom: 2px solid currentColor; border-radius: 0 0 9999px 9999px; transform-origin: center top; animation: mood-smile 2.8s ease-in-out infinite; }
+.mood-face--delighted .mood-face__mouth { height: 31%; border-bottom-width: 3px; }
+.mood-face--balanced .mood-face__eye { height: 2px; top: 37%; }
+.mood-face--trade .mood-face__mouth { bottom: 12%; transform: rotate(180deg); }
+.mood-face--learning .mood-face__mouth { left: 38%; width: 24%; border-radius: 9999px; }
+.mood-face--small .mood-face__mouth { border-bottom-width: 1.5px; }
+@keyframes mood-float { 0%, 100% { transform: translateY(0) rotate(-2deg) scale(1); } 50% { transform: translateY(-4px) rotate(2deg) scale(1.04); } }
+@keyframes mood-blink { 0%, 44%, 48%, 100% { transform: scaleY(1); } 46% { transform: scaleY(.12); } }
+@keyframes mood-smile { 0%, 100% { transform: scaleX(.95); } 50% { transform: translateY(-1px) scaleX(1.08); } }
+@media (prefers-reduced-motion: reduce) { .mood-face, .mood-face__eye { animation: none; } }
+
+/* A compact agreement pulse: individual signals converge into a shared plan. */
+.mood-face {
+  width: 4.25rem;
+  height: 2.25rem;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.mood-face::before {
+  content: '';
+  position: absolute;
+  top: .78rem;
+  left: .1rem;
+  width: .58rem;
+  height: .58rem;
+  border-radius: 9999px;
+  background: currentColor;
+  box-shadow: 1.12rem 0 0 currentColor, 2.24rem 0 0 currentColor, 3.36rem 0 0 currentColor;
+  animation: agreement-dots 2.8s ease-in-out infinite;
+}
+.mood-face::after {
+  content: '';
+  position: absolute;
+  inset: .2rem 1.56rem;
+  border: 2px solid currentColor;
+  border-radius: 9999px;
+  opacity: .38;
+  animation: agreement-ring 2.8s ease-out infinite;
+}
+.mood-face__eye, .mood-face__mouth { display: none; }
+.mood-face--small { width: 2.2rem; height: 1.1rem; }
+.mood-face--small::before { top: .35rem; left: .05rem; width: .27rem; height: .27rem; box-shadow: .58rem 0 0 currentColor, 1.16rem 0 0 currentColor, 1.74rem 0 0 currentColor; }
+.mood-face--small::after { inset: .08rem .78rem; border-width: 1px; }
+@keyframes agreement-dots { 0%, 100% { transform: scale(1); opacity: .72; } 45% { transform: scale(1.12); opacity: 1; } 60% { transform: scale(.92); } }
+@keyframes agreement-ring { 0% { transform: scale(.55); opacity: .55; } 60%, 100% { transform: scale(1.65); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .mood-face::before, .mood-face::after { animation: none; } }

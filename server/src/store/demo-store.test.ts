@@ -136,6 +136,8 @@ test('applies generated-trip disruptions to the active day', () => {
   const changed = updated.itinerary.find((item) => item.day === 2 && item.status === 'moved');
   assert.ok(changed);
   assert.match(changed.title, /Indoor cultural alternative/);
+  const dayTwoTimes = updated.itinerary.filter((item) => item.day === 2).map((item) => item.time);
+  assert.deepEqual(dayTwoTimes, [...dayTwoTimes].sort());
 });
 
 test('voice tired replan changes only the selected Tokyo day', () => {
@@ -146,6 +148,22 @@ test('voice tired replan changes only the selected Tokyo day', () => {
   const changed = updated.itinerary.find((item) => item.day === 2 && item.status === 'moved' && item.title.startsWith('Shortened ') && item.durationMins <= 60);
   assert.ok(changed);
   assert.deepEqual(updated.itinerary.filter((item) => item.day === 1).map((item) => ({ id: item.id, title: item.title, durationMins: item.durationMins })), dayOne);
+});
+
+test('every disruption updates only the selected Tokyo day and keeps the sequence time-sorted', () => {
+  for (const type of ['late', 'rain', 'flight-delay', 'closed', 'tired'] as const) {
+    const store = new DemoStore();
+    const before = store.getTrip().itinerary.map((item) => ({ id: item.id, day: item.day, time: item.time, title: item.title, status: item.status }));
+    const updated = store.replan(type, 3);
+    const changed = updated.itinerary.filter((item) => {
+      const previous = before.find((candidate) => candidate.id === item.id);
+      return previous && (previous.day !== item.day || previous.time !== item.time || previous.title !== item.title || previous.status !== item.status);
+    });
+    assert.ok(changed.length > 0, `${type} should update at least one stop`);
+    assert.ok(changed.every((item) => item.day === 3), `${type} should not update another day`);
+    const dayThreeTimes = updated.itinerary.filter((item) => item.day === 3).map((item) => item.time);
+    assert.deepEqual(dayThreeTimes, [...dayThreeTimes].sort());
+  }
 });
 
 test('preference approval never moves breakfast, lunch, or dinner out of their meal windows', () => {

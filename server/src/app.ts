@@ -73,7 +73,7 @@ const polishedTripBrief = (request: { origin?: string; destination: string; depa
 export const createApp = () => {
   const store = new DemoStore();
   const sabre = new SabreService(store.getTrip());
-  const sabreMcp = new SabreMcpService();
+  const sabreMcp = new SabreMcpService(() => sabre.accessToken());
   const planner = new VocalBridgeService();
   const payments = new PayPalService();
   const routeOptimizer = new RouteOptimizer();

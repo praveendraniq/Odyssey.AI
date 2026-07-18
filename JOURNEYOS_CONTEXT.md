@@ -90,7 +90,7 @@ Server key: `GOOGLE_PLACES_API_KEY`; optional `GOOGLE_WEATHER_API_KEY`. Client m
 
 ### PayPal
 
-Set `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `PAYPAL_ENV=sandbox`, and `MOCK_MODE=false` for real sandbox Orders API behavior. A real approval URL should open PayPal sandbox; a mock order must be labeled mock and will not show in a sandbox account. Known flight/hotel costs are collected before travel. Variable receipts are tracked during travel and net-settled afterward so booking costs are never charged twice.
+Set `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `PAYPAL_ENV=sandbox`, and `MOCK_MODE=false` for real sandbox Orders API behavior. A real approval URL should open PayPal sandbox; a mock order must be labeled mock and will not show in a sandbox account. Known flight/hotel costs use an admin-first model: the trip admin advances the full booking total once, then JourneyOS calculates each traveler's reimbursement share. This PayPal merchant collection does not itself pay or ticket Sabre flight/hotel suppliers; supplier booking and settlement remain separate integrations. Variable receipts are tracked during travel and net-settled afterward so booking costs are never charged twice. Each end-of-trip PayPal checkout targets one selected debtor's exact net reimbursement rather than pretending one checkout collected from every traveler. Shipping is disabled for these non-physical orders.
 
 ### Receipt OCR
 
@@ -153,6 +153,22 @@ There is no root `typecheck` script; root `lint` invokes both workspace typechec
 - Weather follows active destination with labeled live/fallback source.
 - Maps/Places/Routes, Sabre, PayPal, Vocal Bridge, and Landing AI have adapters with explicit fallback modes.
 - The AI Travel Negotiator now models call → explicit agreement → admin preview → apply, rather than changing the itinerary from a survey response.
+- PayPal checkout uses `NO_SHIPPING`; approval/cancel return windows notify the opener and close automatically.
+- Booking is admin-first. After capture, JourneyOS can create one exact private PayPal reimbursement order and copyable message per non-admin friend.
+- The neighborhood-hop bundle updates each day’s check-in, breakfast, dinner, and return hotel anchors instead of showing one hotel across the whole trip.
+- Live disruption controls are compact icons. Applying one updates the selected day and reveals the optimized before/after route directly below.
+- Group vibe uses CSS-drawn animated faces instead of platform-dependent emoji.
+- Sabre CERT shopping was verified against the live sandbox: it returned fresh flight offers for SFO → Tokyo. Carrier detail and hotel results are only displayed when Sabre exposes them; curated bundles remain explicitly separate demo choices.
+- Sabre credentials now accept either `SABRE_EPR_USERNAME` / `SABRE_EPR_PASSWORD` or the legacy `SABRE_V2_USER_ID` / `SABRE_V2_PASSWORD`, and the MCP adapter can obtain/cached OAuth tokens through the Sabre service rather than requiring a long-lived browser token.
+- Sabre CERT now refuses to guess a city-to-airport mapping. If the brief contains a city name, the live-search button asks for the official three-letter IATA origin and destination before it sends the request; this keeps the search real without adding a fragile hard-coded city list.
+- Live Sabre search proposes the selected package's displayed airport codes, asks the user for one explicit origin/destination confirmation, and supports the same confirmed pair through Vocal Bridge action `search_live_sabre`. A same-code route such as `BKK → BKK` reopens the edit prompt.
+- Curated bundle cards remain a separate demo decision surface. A live AA alert is shown only when a fresh Sabre response explicitly contains carrier code `AA` and its flight-only group fare is lower than the curated AA flight component; it must never compare a flight-only live price to a flight-plus-hotel bundle total.
+- Dashboard weather always queries the saved trip destination, not a human-readable itinerary subtitle such as “Central Tokyo,” which Open-Meteo cannot reliably geocode. The UI keeps the provider/fallback label visible.
+- Browser voice actions now cover navigation, selecting a bundle, explicit booking confirmation, collection, and adding a shared expense. The global assistant sends fresh current-page, trip, and active-day context whenever the route changes.
+- Voice can now add a named friend with an optional phone through `add_traveler`, but only after it repeats the details and receives explicit confirmation. The same server mutation backs voice and click entry, so the roster is immediately saved and visible on Planning.
+- Traveler-count changes recalculate curated flight totals, package totals, reimbursement shares, and payment participants. They also clear any displayed live Sabre CERT result, because supplier offers are passenger-count-specific and must be searched again for the new group.
+- Voice sessions are intentionally persistent across page navigation. The page microphone mutes/unmutes the existing session; only the explicit `End call` control disconnects it. The hosted Vocal Bridge prompt must be synchronized from `vocal-bridge/agent-prompt.md` for this behavior to be used in a real call.
+- Final local verification: TypeScript checks, 21 server tests, production build, desktop/mobile layouts, and browser console errors were checked on 2026-07-18. Google Maps currently reports a non-blocking direct-loader/legacy Marker and Directions API deprecation warning; migrate those APIs after the demo rather than masking the warning.
 
 ## Known limitations and next work
 
@@ -161,7 +177,7 @@ Highest priority before judging:
 1. Deploy/synchronize the updated Vocal Bridge prompt and configure the secured negotiation callback through a public HTTPS URL.
 2. Run one real consented call end-to-end and verify transcript/callback/polling on the actual hackathon network.
 3. Verify Google day maps show all selected-day markers, route lines, distances, and selected-place details using valid restricted keys.
-4. Run Sabre CERT search with event credentials and capture truthful AA evidence only if returned.
+4. Run Sabre CERT search with event credentials and capture truthful AA evidence only if returned. Real booking still requires preserving a freshly selected opaque offer/rate payload plus complete traveler identity; curated demo bundles must never be submitted or labeled ticketed.
 5. Complete one PayPal sandbox approval and capture, then verify it in merchant and buyer sandbox dashboards.
 6. Perform browser E2E at desktop and narrow/mobile widths. Keep floating voice controls from covering settlement/actions.
 

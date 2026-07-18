@@ -1,12 +1,42 @@
 [
   {
-    "name": "show_agent_network",
-    "description": "Open the JourneyOS Agent Network so the traveler can inspect delegation and handoff traces.",
+    "name": "show_booking_options",
+    "description": "Open JourneyOS Booking and Checkout so the traveler can review flights, hotels, and payment details.",
     "direction": "agent_to_app"
   },
   {
-    "name": "show_booking_options",
-    "description": "Open JourneyOS Booking and Checkout so the traveler can review flights, hotels, and payment details.",
+    "name": "navigate",
+    "description": "Navigate JourneyOS. Payload page: home, planner, checkout, live, expenses, or dna.",
+    "direction": "agent_to_app"
+  },
+  {
+    "name": "select_bundle",
+    "description": "Select a booking bundle. Payload id: value, overall, or neighborhood.",
+    "direction": "agent_to_app"
+  },
+  {
+    "name": "confirm_booking",
+    "description": "Open the admin payment step only after the user explicitly confirms the selected bundle.",
+    "direction": "agent_to_app"
+  },
+  {
+    "name": "collect_payment",
+    "description": "Create the admin PayPal checkout only after the user explicitly asks to pay. The UI remains responsible for approval and capture.",
+    "direction": "agent_to_app"
+  },
+  {
+    "name": "search_live_sabre",
+    "description": "After the traveler explicitly confirms an origin and destination airport code, search fresh Sabre CERT inventory. Payload: origin and destination, each a three-letter IATA code. Never guess a code from a city name; ask for confirmation first.",
+    "direction": "agent_to_app"
+  },
+  {
+    "name": "add_expense",
+    "description": "Fill and add a shared expense. Payload: description, amount, paidBy, and optional participants. Ask for missing values before emitting.",
+    "direction": "agent_to_app"
+  },
+  {
+    "name": "add_traveler",
+    "description": "Add a friend to the saved group. Payload: name and optional phone in E.164 format. First repeat the name and phone back and receive an explicit yes before emitting. This recalculates group totals and invalidates any previously searched Sabre inventory.",
     "direction": "agent_to_app"
   },
   {

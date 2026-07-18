@@ -20,8 +20,8 @@ export const config = {
     authVersion: process.env.SABRE_AUTH_VERSION ?? 'v3',
     clientId: process.env.SABRE_CLIENT_ID,
     clientSecret: process.env.SABRE_CLIENT_SECRET,
-    v2UserId: process.env.SABRE_V2_USER_ID,
-    v2Password: process.env.SABRE_V2_PASSWORD,
+    v2UserId: process.env.SABRE_V2_USER_ID ?? process.env.SABRE_EPR_USERNAME,
+    v2Password: process.env.SABRE_V2_PASSWORD ?? process.env.SABRE_EPR_PASSWORD,
     v2Pcc: process.env.SABRE_V2_PCC ?? 'S5OM',
     v2Domain: process.env.SABRE_V2_DOMAIN ?? 'EXT',
     baseUrl: process.env.SABRE_BASE_URL ?? 'https://api.cert.platform.sabre.com',
@@ -41,7 +41,9 @@ export const config = {
     agentId: process.env.VOCAL_BRIDGE_AGENT_ID,
     mayaAgentId: process.env.VOCAL_BRIDGE_MAYA_AGENT_ID ?? '8461e8c8-6b94-42c7-bc4b-dbe48d25e700',
     mayaPhone: process.env.VOCAL_BRIDGE_MAYA_PHONE ?? '+12403781801',
-    outboundContextSecret: process.env.VOCAL_BRIDGE_CONTEXT_SECRET,
+    // Prefer the documented outbound callback secret name. Keep the original
+    // alias so existing local setups continue to work during the hackathon.
+    outboundContextSecret: process.env.VOCAL_BRIDGE_OUTBOUND_CONTEXT_SECRET ?? process.env.VOCAL_BRIDGE_CONTEXT_SECRET,
   },
   landingAi: {
     apiKey: process.env.LANDING_AI_API_KEY,
