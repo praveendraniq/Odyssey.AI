@@ -189,3 +189,34 @@ test('contextual itinerary commands target the selected day and can be undone', 
   assert.equal(restored.trip.itinerary.find((item) => item.id === dayThree[1].id)?.status, 'upcoming');
   assert.equal(restored.trip.itinerary.find((item) => item.id === dayThree[0].id)?.status, before.itinerary.find((item) => item.id === dayThree[0].id)?.status);
 });
+
+test('discovers a live conflict, negotiates it, and applies it only after admin approval', () => {
+  const store = new DemoStore();
+  const prabhu = store.getTrip().travelers.find((traveler) => traveler.name === 'Prabhu');
+  assert.ok(prabhu);
+  const started = store.startNegotiation(prabhu.id, 'mock');
+  const agreement = started.preferenceCollection?.agreement;
+  assert.equal(agreement?.status, 'calling');
+  assert.equal(agreement?.travelerName, prabhu.name);
+  assert.match(agreement?.conflict ?? '', /waiting to hear/i);
+  assert.equal(agreement?.itineraryChanges.length, 0);
+  assert.equal(started.preferenceCollection?.calls.filter((call) => call.status === 'completed').length, 2);
+
+  const accepted = store.completeNegotiation({ travelerId: prabhu.id, accepted: true, statedPreference: 'I want a late live music experience', travelerResponse: 'Yes, that works for me.' });
+  const resolvedAgreement = accepted.preferenceCollection?.agreement;
+  assert.equal(resolvedAgreement?.status, 'accepted');
+  assert.notEqual(resolvedAgreement?.counterpartId, prabhu.id);
+  assert.match(resolvedAgreement?.conflict ?? '', new RegExp(`${prabhu.name}.*${resolvedAgreement?.counterpartName}`, 'i'));
+  assert.ok((resolvedAgreement?.afterHappiness ?? 0) > (resolvedAgreement?.beforeHappiness ?? 0));
+  assert.equal(accepted.groupPreference.groupHappiness, resolvedAgreement?.afterHappiness);
+  assert.equal(resolvedAgreement?.itineraryChanges.some((change) => accepted.itinerary.some((item) => item.id === change.id)), false);
+
+  const applied = store.applyNegotiation();
+  assert.equal(applied.preferenceCollection?.agreement?.status, 'applied');
+  for (const change of resolvedAgreement?.itineraryChanges ?? []) {
+    const item = applied.itinerary.find((candidate) => candidate.id === change.id);
+    assert.equal(item?.day, resolvedAgreement?.affectedDay);
+    assert.equal(item?.time, change.time);
+    assert.equal(item?.title, change.title);
+  }
+});

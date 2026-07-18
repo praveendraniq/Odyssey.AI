@@ -19,6 +19,9 @@ export const api = {
   approvePreferences: (interestScores: Trip['groupPreference']['interestScores'], trip: Trip) => request<{ trip: Trip }>('/api/planner/approve-preferences', { method: 'POST', body: JSON.stringify({ interestScores, trip }) }),
   simulatePrabhuInterview: (trip: Trip) => request<{ trip: Trip; summary: string }>('/api/planner/simulate-prabhu-interview', { method: 'POST', body: JSON.stringify({ trip }) }),
   callPrabhu: (trip: Trip) => request<{ trip: Trip }>('/api/planner/call-prabhu', { method: 'POST', body: JSON.stringify({ trip }) }),
+  startNegotiation: (travelerId: string, trip: Trip) => request<{ trip: Trip; mode: 'live' | 'scripted' }>('/api/planner/negotiation/start', { method: 'POST', body: JSON.stringify({ travelerId, trip }) }),
+  simulateNegotiation: (trip: Trip) => request<{ trip: Trip }>('/api/planner/negotiation/simulate', { method: 'POST', body: JSON.stringify({ trip }) }),
+  applyNegotiation: (trip: Trip) => request<{ trip: Trip }>('/api/planner/negotiation/apply', { method: 'POST', body: JSON.stringify({ trip }) }),
   // Partner voice UI uses Maya as its demonstration traveler. Keep both
   // names wired to the same server workflow during the transition.
   simulateMayaInterview: (trip: Trip) => request<{ trip: Trip; summary: string }>('/api/planner/simulate-prabhu-interview', { method: 'POST', body: JSON.stringify({ trip }) }),

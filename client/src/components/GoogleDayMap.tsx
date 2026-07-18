@@ -62,7 +62,7 @@ export function GoogleDayMap({ trip, activeDay, onSelect }: { trip: Trip; active
       setUseEmbedFallback(true);
       setStatus('ready');
       setRouteSummary(`${stops.length} planned stops · interactive markers unavailable, showing the Google route preview`);
-    }, 5000);
+    }, 3000);
     void loadMaps(key).then(async ({ maps }) => {
       if (canceled || !container.current) return;
       const map = new maps.Map(container.current, { center: { lat: 0, lng: 0 }, zoom: 2, mapTypeControl: false, streetViewControl: false, fullscreenControl: true });
@@ -81,7 +81,7 @@ export function GoogleDayMap({ trip, activeDay, onSelect }: { trip: Trip; active
         settled = true;
         window.clearTimeout(fallbackTimer);
         setUseEmbedFallback(true);
-        setStatus('ready');
+        setStatus('error');
         setRouteSummary(`${stops.length} planned stops · showing the Google route preview`);
         return;
       }
@@ -131,7 +131,7 @@ export function GoogleDayMap({ trip, activeDay, onSelect }: { trip: Trip; active
         settled = true;
         window.clearTimeout(fallbackTimer);
         setUseEmbedFallback(true);
-        setStatus('ready');
+        setStatus('error');
         setRouteSummary(`${stops.length} planned stops · showing the Google route preview`);
       }
     });

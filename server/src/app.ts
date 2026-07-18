@@ -31,6 +31,23 @@ const preferenceCallCallbackSchema = z.object({
 });
 const preferenceDecisionSchema = z.object({ interestScores: z.record(z.string(), z.number().min(1).max(5)), trip: z.unknown().optional() });
 const simulatedInterviewSchema = z.object({ trip: z.unknown().optional() });
+const negotiationStartSchema = z.object({ travelerId: z.string().min(1), trip: z.unknown().optional() });
+const negotiationDialogueSchema = z.array(z.object({ speaker: z.enum(['agent', 'traveler']), text: z.string().min(1).max(1000) })).max(20);
+const negotiationItineraryChangeSchema = z.object({ time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/), title: z.string().min(2).max(120), subtitle: z.string().min(2).max(180), category: z.enum(['food', 'experience']) });
+const negotiationCallbackSchema = z.object({
+  travelerId: z.string().min(1),
+  accepted: z.union([z.boolean(), z.enum(['true', 'false'])]).transform((value) => value === true || value === 'true'),
+  travelerResponse: z.string().min(1).max(1000),
+  statedPreference: z.string().min(1).max(500).optional(),
+  counterpartId: z.string().min(1).max(120).optional(),
+  conflict: z.string().min(4).max(800).optional(),
+  rationale: z.string().min(4).max(1000).optional(),
+  proposal: z.string().min(4).max(800).optional(),
+  affectedDay: z.coerce.number().int().min(1).max(14).optional(),
+  agreedChanges: z.array(z.string().min(2).max(200)).max(6).optional(),
+  itineraryChanges: z.array(negotiationItineraryChangeSchema).min(1).max(4).optional(),
+  dialogue: negotiationDialogueSchema.optional(),
+});
 const selectionSchema = z.object({ id: z.string().min(1), trip: z.unknown().optional() });
 const progressSchema = z.object({ id: z.string().min(1).optional(), action: z.enum(['start', 'complete', 'skip', 'restore', 'delay']), actualDurationMins: z.number().int().min(1).max(720).optional(), minutes: z.number().int().min(1).max(240).optional(), trip: z.unknown().optional() });
 const itineraryCommandSchema = z.object({ query: z.string().min(2).max(500), activeDay: z.number().int().min(1), trip: z.unknown().optional() });
@@ -100,6 +117,7 @@ export const createApp = () => {
     const suppliedSecret = req.header('X-JourneyOS-Context-Key');
     if (!config.vocalBridge.outboundContextSecret || suppliedSecret !== config.vocalBridge.outboundContextSecret) return res.status(401).json({ error: 'Unauthorized trip context request.' });
     const trip = store.getTrip();
+    const session = trip.preferenceCollection?.agreement;
     res.json({
       admin: trip.travelers[0]?.name ?? 'Trip admin',
       trip: {
@@ -108,13 +126,17 @@ export const createApp = () => {
         departureDate: trip.request.departureDate,
         returnDate: trip.request.returnDate,
         duration: trip.request.duration,
-        travelers: trip.travelers.map(({ id, name, pacePreference, foodPreference }) => ({ id, name, pacePreference, foodPreference })),
+        travelers: trip.travelers.map(({ id, name, pacePreference, foodPreference, interests }) => ({ id, name, pacePreference, foodPreference, interests })),
         budget: trip.request.budget,
         travelStyle: trip.request.travelStyle,
         interests: trip.request.interests,
         foodPreferences: trip.request.foodPreferences,
       },
-      instruction: 'Use this as established context. Do not ask the callee to repeat these facts. Ask only for their personal priorities, constraints, pace, food needs, and a compromise they would accept.',
+      negotiationSession: session ? { travelerId: session.travelerId, travelerName: session.travelerName, affectedDayHint: session.affectedDay, phase: 'discover-live-preference' } : undefined,
+      knownProfiles: trip.preferenceCollection?.calls.filter((call) => call.status === 'completed').map((call) => ({ travelerId: call.travelerId, name: call.name, topPriorities: call.topPriorities, summary: call.summary })) ?? [],
+      instruction: session
+        ? `Do not assume a conflict. First ask ${session.travelerName} for the one thing that matters most or one constraint. Compare the live answer against the supplied traveler profiles. If a real conflict exists, name it, explain why, generate a specific compromise, and seek explicit agreement. Submit the discovered preference, conflict, rationale, proposal, counterpart, affected day, agreed changes, itinerary changes, and dialogue to the secured callback.`
+        : 'Use this as established context. Do not ask the callee to repeat known facts. Collect a concise personal priority or constraint for later comparison.',
     });
   });
   app.post('/api/preference-calls/complete', (req, res, next) => {
@@ -188,6 +210,44 @@ export const createApp = () => {
       res.json({ collection, trip });
     } catch (error) { next(error); }
   });
+  app.post('/api/planner/negotiation/start', async (req, res, next) => {
+    try {
+      const input = negotiationStartSchema.parse(req.body);
+      if (input.trip) store.hydrate(input.trip as ReturnType<typeof store.getTrip>);
+      const traveler = store.getTrip().travelers.find((item) => item.id === input.travelerId);
+      if (!traveler) throw new Error('That traveler is not part of this trip.');
+      const live = !config.mockMode && Boolean(config.vocalBridge.apiKey && config.vocalBridge.agentId && config.vocalBridge.outboundContextSecret);
+      store.startNegotiation(input.travelerId, live ? 'vocal-bridge' : 'mock');
+      if (live) {
+        try { await planner.callNegotiation(traveler); }
+        catch (error) {
+          console.warn('Live negotiation call unavailable; using scripted fallback.', error);
+          store.startNegotiation(input.travelerId, 'mock');
+          return res.json({ trip: store.getTrip(), mode: 'scripted' as const });
+        }
+      }
+      return res.json({ trip: store.getTrip(), mode: live ? 'live' as const : 'scripted' as const });
+    } catch (error) { next(error); }
+  });
+  app.post('/api/planner/negotiation/simulate', (req, res, next) => {
+    try {
+      const { trip } = simulatedInterviewSchema.parse(req.body);
+      if (trip) store.hydrate(trip as ReturnType<typeof store.getTrip>);
+      const activeTrip = store.getTrip();
+      const agreement = activeTrip.preferenceCollection?.agreement;
+      if (!agreement) throw new Error('Start the negotiation before running the scripted fallback.');
+      const traveler = activeTrip.travelers.find((item) => item.id === agreement.travelerId);
+      const statedPreference = traveler ? (Object.entries(traveler.interests).sort((left, right) => right[1] - left[1])[0]?.[0] ?? 'a memorable local experience') : 'a memorable local experience';
+      return res.json({ trip: store.completeNegotiation({ travelerId: agreement.travelerId, accepted: true, statedPreference, travelerResponse: 'Yes, that compromise still protects what matters to me.' }) });
+    } catch (error) { next(error); }
+  });
+  app.post('/api/planner/negotiation/apply', (req, res, next) => {
+    try {
+      const { trip } = simulatedInterviewSchema.parse(req.body);
+      if (trip) store.hydrate(trip as ReturnType<typeof store.getTrip>);
+      return res.json({ trip: store.applyNegotiation() });
+    } catch (error) { next(error); }
+  });
   app.post('/api/planner/approve-preferences', (req, res, next) => {
     try { const input = preferenceDecisionSchema.parse(req.body); if (input.trip) store.hydrate(input.trip as ReturnType<typeof store.getTrip>); res.json({ trip: store.applyPreferenceDecision(input.interestScores as ReturnType<typeof store.getTrip>['groupPreference']['interestScores']) }); }
     catch (error) { next(error); }
@@ -257,6 +317,14 @@ export const createApp = () => {
       const input = itineraryCommandSchema.parse(req.body);
       if (input.trip) store.hydrate(input.trip as ReturnType<typeof store.getTrip>);
       res.json(store.applyItineraryCommand(input.query, input.activeDay));
+    } catch (error) { next(error); }
+  });
+  app.post('/api/negotiation-calls/complete', (req, res, next) => {
+    try {
+      const suppliedSecret = req.header('X-JourneyOS-Context-Key');
+      if (!config.vocalBridge.outboundContextSecret || suppliedSecret !== config.vocalBridge.outboundContextSecret) return res.status(401).json({ error: 'Unauthorized negotiation callback.' });
+      const source = req.body && Object.keys(req.body).length ? req.body : req.query;
+      return res.json({ trip: store.completeNegotiation(negotiationCallbackSchema.parse(source)) });
     } catch (error) { next(error); }
   });
 

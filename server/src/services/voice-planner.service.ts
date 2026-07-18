@@ -52,6 +52,17 @@ const readDate = (value: string): string | undefined => {
  * of an eventual Vocal Bridge structured conversation response.
  */
 export class VocalBridgeService {
+  async callNegotiation(traveler: Traveler): Promise<void> {
+    const phone = traveler.phone?.trim();
+    if (!phone || !/^\+[1-9]\d{7,14}$/.test(phone)) throw new Error(`${traveler.name} needs a valid E.164 phone number before calling.`);
+    try {
+      await run('vb', ['call', phone, '--name', `${traveler.name} · live negotiation`, '--json'], { timeout: 30_000 });
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : 'Unknown outbound call error';
+      if (/ENOENT|not recognized|not found/i.test(detail)) throw new Error('Vocal Bridge CLI is not installed or authenticated. Use the scripted fallback or configure the CLI.');
+      throw new Error(`Could not place ${traveler.name}'s negotiation call: ${detail}`);
+    }
+  }
   async callPrabhuAgent(): Promise<void> {
     if (!config.vocalBridge.mayaPhone) throw new Error('Maya’s Vocal Bridge phone number is not configured.');
     try {

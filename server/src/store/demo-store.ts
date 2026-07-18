@@ -18,6 +18,10 @@ const route = (id: string, day: number, time: string, title: string, subtitle: s
 });
 
 const MAX_ITINERARY_DAYS = 14;
+const NEGOTIATION_POLICY = { minimumFitGain: 5, maximumFit: 96 } as const;
+const interestLabel = (interest: Interest) => interest.replace(/\b\w/g, (letter) => letter.toUpperCase());
+const timeFromMinutes = (minutes: number) => `${String(Math.floor(minutes / 60) % 24).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
+const minutesFromTime = (time: string) => Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5));
 const DEFAULT_ADMIN = { name: 'Hema', phone: '+14155550101' };
 const adminFromBrief = (brief: string | undefined, request: Trip['request']): Traveler => {
   const nameMatch = brief?.match(/(?:my name is|i am|i'm)\s+([a-z][a-z '-]{1,50})(?=[,.]|\s+(?:and|from|with|for|my|i)|$)/i)?.[1]?.trim();
@@ -431,6 +435,112 @@ export class DemoStore {
     collection.approvalSummary = completed
       ? `${completed} traveler preference${completed === 1 ? '' : 's'} collected. JourneyOS has refreshed group fit and the compromise route.`
       : 'No preference calls have completed yet.';
+    return this.getTrip();
+  }
+
+  startNegotiation(travelerId: string, source: PreferenceCollection['source'] = 'mock'): Trip {
+    const traveler = this.trip.travelers.find((item) => item.id === travelerId);
+    if (!traveler || traveler === this.trip.travelers[0]) throw new Error('Choose one friend to negotiate with.');
+    const admin = this.trip.travelers[0];
+    const knownProfiles = this.trip.travelers.filter((item) => item.id !== traveler.id && item.id !== admin?.id).slice(0, 2);
+    const counterpart = knownProfiles[0] ?? admin;
+    if (!counterpart) throw new Error('Add another traveler before starting a negotiation.');
+    const priorities = (Object.entries(traveler.interests) as Array<[Interest, number]>).sort((left, right) => right[1] - left[1]);
+    const availableDays = [...new Set(this.trip.itinerary.map((item) => item.day))].sort((left, right) => left - right);
+    const affectedDay = availableDays.find((day) => day >= 2) ?? availableDays[0] ?? 1;
+    const agreementId = `negotiation-${Date.now()}`;
+    const currentFit = groupHappiness(this.trip.travelers, this.trip.itinerary, this.trip.request.duration);
+    const beforeHappiness = currentFit.groupHappiness;
+    const pendingConflict = `Waiting to hear ${traveler.name}'s live priority before detecting a conflict.`;
+    this.trip.preferenceCollection = {
+      adminName: admin?.name ?? 'Trip admin', adminWeight: 1.5, source, status: 'pending',
+      calls: [
+        ...knownProfiles.map((profile) => ({ travelerId: profile.id, name: profile.name, phone: profile.phone ?? '', status: 'completed' as const, happiness: beforeHappiness, topPriorities: (Object.entries(profile.interests) as Array<[Interest, number]>).sort((left, right) => right[1] - left[1]).slice(0, 2).map(([interest]) => interestLabel(interest)), summary: `${profile.name}'s preferences are already available for live comparison.`, compromise: 'Saved context for the live negotiation.' })),
+        { travelerId: traveler.id, name: traveler.name, phone: traveler.phone ?? '', status: source === 'vocal-bridge' ? 'dialing' : 'queued', happiness: beforeHappiness, topPriorities: priorities.slice(0, 2).map(([interest]) => interestLabel(interest)), summary: `JourneyOS will hear ${traveler.name}'s live preference, compare it with the saved profiles, and negotiate only if a conflict emerges.`, compromise: 'Waiting for the traveler to speak.' },
+      ],
+      negotiation: pendingConflict,
+      approvalSummary: `${knownProfiles.length} preference profile${knownProfiles.length === 1 ? '' : 's'} loaded. The live conflict has not been assumed.`,
+      agreement: {
+        id: agreementId, travelerId: traveler.id, travelerName: traveler.name, counterpartId: counterpart.id, counterpartName: counterpart.name, conflict: pendingConflict,
+        rationale: `JourneyOS will compare ${traveler.name}'s spoken request with the saved group profiles before naming any conflict.`,
+        proposal: 'No compromise has been proposed yet.', accepted: false, status: 'calling', affectedDay, beforeHappiness, afterHappiness: beforeHappiness,
+        agreedChanges: [], preview: [], itineraryChanges: [], dialogue: [],
+      },
+    };
+    this.trip.events.unshift({ id: `negotiation-start-${Date.now()}`, type: 'tired', title: `AI Negotiator called ${traveler.name}`, createdAt: new Date().toISOString(), explanation: pendingConflict });
+    return this.getTrip();
+  }
+
+  completeNegotiation(input: { travelerId: string; accepted: boolean; travelerResponse: string; statedPreference?: string; counterpartId?: string; conflict?: string; rationale?: string; proposal?: string; affectedDay?: number; agreedChanges?: string[]; itineraryChanges?: Array<{ time: string; title: string; subtitle: string; category: 'food' | 'experience' }>; dialogue?: Array<{ speaker: 'agent' | 'traveler'; text: string }> }): Trip {
+    const collection = this.trip.preferenceCollection;
+    const agreement = collection?.agreement;
+    if (!collection || !agreement || agreement.travelerId !== input.travelerId) throw new Error('Start this negotiation before submitting its result.');
+    const call = collection.calls.find((item) => item.travelerId === input.travelerId);
+    if (!call) throw new Error('The traveler is not part of this negotiation.');
+    const traveler = this.trip.travelers.find((item) => item.id === input.travelerId);
+    const savedProfiles = this.trip.travelers.filter((item) => item.id !== input.travelerId && item.id !== this.trip.travelers[0]?.id);
+    const spokenPreference = (input.statedPreference ?? input.travelerResponse).trim();
+    const counterpart = this.trip.travelers.find((item) => item.id === input.counterpartId)
+      ?? (/night|late|party|bar|club/i.test(spokenPreference) ? savedProfiles.find((item) => /vegetarian|vegan|allergy|shellfish|gluten/i.test(item.foodPreference) || item.pacePreference === 'easy') : undefined)
+      ?? (/packed|many|fast|adventure|hike/i.test(spokenPreference) ? savedProfiles.find((item) => item.pacePreference === 'easy') : undefined)
+      ?? savedProfiles[0]
+      ?? this.trip.travelers[0];
+    if (!traveler || !counterpart) throw new Error('The active negotiation needs both a caller and a saved traveler profile.');
+    const constraint = counterpart.foodPreference && counterpart.foodPreference !== 'No preference added' ? counterpart.foodPreference.toLowerCase() : `${counterpart.pacePreference} pace`;
+    const requestedExperience = /night|party|bar|club/i.test(spokenPreference) ? 'nightlife' : /food|dinner|lunch|restaurant|vegan|vegetarian/i.test(spokenPreference) ? 'food' : /photo/i.test(spokenPreference) ? 'photography' : /shop|market/i.test(spokenPreference) ? 'shopping' : /hike|nature|park/i.test(spokenPreference) ? 'nature' : 'requested experience';
+    const destination = this.trip.request.destination;
+    const affectedDay = Math.min(Math.max(1, input.affectedDay ?? agreement.affectedDay), this.trip.request.duration);
+    const dayTimes = this.trip.itinerary.filter((item) => item.day === affectedDay && !['stay', 'transport'].includes(item.category)).map((item) => minutesFromTime(item.time)).filter((time) => time < 20 * 60);
+    const lastCoreTime = dayTimes.length ? Math.max(...dayTimes) : 16 * 60;
+    const sharedTime = timeFromMinutes(Math.min(19 * 60, Math.max(17 * 60, lastCoreTime + 120)));
+    const optionalTime = timeFromMinutes(minutesFromTime(sharedTime) + 150);
+    const generatedChanges = input.itineraryChanges?.length ? input.itineraryChanges.map((change, index) => ({ ...change, id: `${agreement.id}-change-${index + 1}` })) : [
+      { id: `${agreement.id}-shared`, time: sharedTime, title: /vegetarian/i.test(constraint) ? 'Vegetarian group dinner' : /vegan/i.test(constraint) ? 'Vegan group dinner' : 'Shared group activity', subtitle: `${destination} · protects ${counterpart.name}'s constraint`, category: 'food' as const },
+      { id: `${agreement.id}-optional`, time: optionalTime, title: `Optional ${requestedExperience}`, subtitle: `${destination} · protects ${traveler.name}'s live request`, category: 'experience' as const },
+    ];
+    const currentFit = groupHappiness(this.trip.travelers, this.trip.itinerary, this.trip.request.duration);
+    const beforeHappiness = currentFit.groupHappiness;
+    const afterHappiness = Math.min(NEGOTIATION_POLICY.maximumFit, beforeHappiness + Math.max(NEGOTIATION_POLICY.minimumFitGain, Math.ceil(currentFit.fairnessGap / 2)));
+    agreement.counterpartId = counterpart.id;
+    agreement.counterpartName = counterpart.name;
+    agreement.conflict = input.conflict?.trim() || `${traveler.name}'s live request for ${requestedExperience} competes with ${counterpart.name}'s ${constraint} constraint.`;
+    agreement.rationale = input.rationale?.trim() || `${traveler.name} asked for “${spokenPreference},” while the saved profile says ${counterpart.name} needs ${constraint}. Both can be protected with a shared-first, optional-after sequence.`;
+    agreement.proposal = input.proposal?.trim() || `Schedule ${generatedChanges[0].title.toLowerCase()} at ${generatedChanges[0].time}, then keep ${requestedExperience} optional from ${generatedChanges[1]?.time ?? optionalTime}.`;
+    agreement.affectedDay = affectedDay;
+    agreement.beforeHappiness = beforeHappiness;
+    agreement.afterHappiness = afterHappiness;
+    agreement.itineraryChanges = generatedChanges;
+    agreement.agreedChanges = input.agreedChanges?.length ? input.agreedChanges : generatedChanges.map((change) => `${change.title} at ${change.time}`);
+    agreement.preview = generatedChanges.map((change) => ({ label: change.category === 'food' ? 'Shared plan' : 'Traveler request', before: agreement.conflict, after: `${change.time} ${change.title}` }));
+    collection.negotiation = agreement.conflict;
+    const dialogue = input.dialogue?.length ? input.dialogue : [
+      { speaker: 'agent' as const, text: `Hi ${agreement.travelerName}. ${collection.adminName} is organizing ${this.trip.request.destination}, and I already know the group's priorities. I need your help resolving one conflict.` },
+      { speaker: 'traveler' as const, text: spokenPreference },
+      { speaker: 'agent' as const, text: `${agreement.rationale} ${agreement.proposal} Would that work for you?` },
+      { speaker: 'traveler' as const, text: input.travelerResponse },
+      { speaker: 'agent' as const, text: input.accepted ? `Perfect. I found a compromise that protects both your priority and ${agreement.counterpartName}'s constraint. I'll send it to ${collection.adminName} for review.` : `Understood. I won't change the itinerary; ${collection.adminName} can review another option.` },
+    ];
+    Object.assign(call, { status: 'completed' as const, summary: input.accepted ? `${agreement.travelerName} accepted the proposed trade with ${agreement.counterpartName}.` : `${agreement.travelerName} declined the proposed trade.`, compromise: input.accepted ? agreement.proposal : 'No agreement yet.', happiness: input.accepted ? agreement.afterHappiness : agreement.beforeHappiness, dialogue });
+    Object.assign(agreement, { accepted: input.accepted, status: input.accepted ? 'accepted' as const : 'declined' as const, travelerResponse: input.travelerResponse, dialogue });
+    collection.approvalSummary = input.accepted ? `Conflict resolved. Group plan fit rises from ${agreement.beforeHappiness}% to ${agreement.afterHappiness}% after admin approval.` : 'The traveler declined this proposal; no itinerary change was made.';
+    const currentGap = this.trip.groupPreference.fairnessGap ?? 0;
+    Object.assign(this.trip.groupPreference, { groupHappiness: input.accepted ? agreement.afterHappiness : agreement.beforeHappiness, averageHappiness: input.accepted ? agreement.afterHappiness : agreement.beforeHappiness, fairnessGap: input.accepted ? Math.max(0, currentGap - (agreement.afterHappiness - agreement.beforeHappiness)) : currentGap, fairnessPenalty: 0, explanation: input.accepted ? agreement.proposal : agreement.conflict });
+    this.trip.events.unshift({ id: `negotiation-result-${Date.now()}`, type: 'tired', title: input.accepted ? 'Conflict resolved by voice' : 'Negotiation needs admin review', createdAt: new Date().toISOString(), explanation: collection.approvalSummary });
+    return this.getTrip();
+  }
+
+  applyNegotiation(): Trip {
+    const collection = this.trip.preferenceCollection;
+    const agreement = collection?.agreement;
+    if (!collection || !agreement?.accepted) throw new Error('An accepted negotiation is required before changing the itinerary.');
+    const changes = agreement.itineraryChanges.map((change, index) => route(change.id, agreement.affectedDay, change.time, change.title, change.subtitle, change.category, 64 + index * 8, 54 + index * 12, index === 0 ? 90 : 75, index === 0 ? 25 : 18, 'moved'));
+    this.trip.itinerary = this.trip.itinerary.filter((item) => !changes.some((change) => change.id === item.id));
+    this.trip.itinerary.push(...changes);
+    this.trip.itinerary.sort((left, right) => left.day - right.day || left.time.localeCompare(right.time));
+    agreement.status = 'applied';
+    collection.status = 'approved';
+    collection.approvalSummary = `${collection.adminName} approved the negotiated trade. Day ${agreement.affectedDay} now includes ${agreement.agreedChanges.join(' and ')}.`;
+    this.trip.events.unshift({ id: `negotiation-applied-${Date.now()}`, type: 'tired', title: `Negotiated agreement applied to Day ${agreement.affectedDay}`, createdAt: new Date().toISOString(), explanation: collection.approvalSummary });
     return this.getTrip();
   }
 

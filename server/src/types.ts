@@ -56,6 +56,27 @@ export interface PreferenceCall {
   dialogue?: Array<{ speaker: 'agent' | 'traveler'; text: string }>;
 }
 
+export interface NegotiationAgreement {
+  id: string;
+  travelerId: string;
+  travelerName: string;
+  counterpartId: string;
+  counterpartName: string;
+  conflict: string;
+  rationale: string;
+  proposal: string;
+  travelerResponse?: string;
+  accepted: boolean;
+  status: 'calling' | 'accepted' | 'declined' | 'applied';
+  affectedDay: number;
+  beforeHappiness: number;
+  afterHappiness: number;
+  agreedChanges: string[];
+  preview: Array<{ label: string; before: string; after: string }>;
+  itineraryChanges: Array<{ id: string; time: string; title: string; subtitle: string; category: 'food' | 'experience' }>;
+  dialogue: Array<{ speaker: 'agent' | 'traveler'; text: string }>;
+}
+
 export interface PreferenceCollection {
   adminName: string;
   adminWeight: number;
@@ -64,6 +85,7 @@ export interface PreferenceCollection {
   negotiation: string;
   approvalSummary: string;
   status?: 'pending' | 'approved';
+  agreement?: NegotiationAgreement;
 }
 
 export interface Flight {
