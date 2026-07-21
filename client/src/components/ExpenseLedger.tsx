@@ -120,7 +120,7 @@ export function ExpenseLedger({ trip, onTrip }: { trip: Trip; onTrip: (trip: Tri
   };
 
   return <section className="mb-28 mt-6 rounded-[28px] border border-stone-200 bg-white p-5 sm:p-6">
-    <div className="flex flex-wrap items-start justify-between gap-4"><div><p className="eyebrow text-moss">Live expense ledger</p><h2 className="mt-1 text-2xl font-bold text-ink">Scan now. Settle once at trip end.</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-stone-600">Record who paid and who shared each expense. JourneyOS nets every receipt, so each traveler makes at most one final settlement.</p></div><Receipt className="text-coral" /></div>
+    <div className="flex flex-wrap items-start justify-between gap-4"><div><p className="eyebrow text-moss">Live expense ledger</p><h2 className="mt-1 text-2xl font-bold text-ink">Scan now. Settle once at trip end.</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-stone-600">Record who paid and who shared each expense. Odyssey nets every receipt, so each traveler makes at most one final settlement.</p></div><Receipt className="text-coral" /></div>
     <div className="mt-5 grid gap-3 lg:grid-cols-[1.3fr_0.7fr_0.9fr]">
       <label className="text-xs font-bold text-stone-500">Receipt description<input value={description} onChange={(event) => setDescription(event.target.value)} className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2.5 text-sm text-ink" /></label>
       <label className="text-xs font-bold text-stone-500">Amount<input type="number" min="0.01" step="0.01" value={amount} onChange={(event) => setAmount(Number(event.target.value))} className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2.5 text-sm text-ink" /></label>
