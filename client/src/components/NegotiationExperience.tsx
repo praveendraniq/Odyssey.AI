@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, Phone, ShieldCheck, Sparkles } from 'lucide-react';
 import { api } from '../api';
-import { PRABHU_PROFILE, isPrabhuProfile } from '../constants/demo-profiles';
+import { SARAH_PROFILE, isSarahProfile } from '../constants/demo-profiles';
 import type { Traveler, Trip } from '../types';
 
 const topInterests = (traveler: Traveler) => Object.entries(traveler.interests)
@@ -16,7 +16,7 @@ const travelerSummary = (traveler: Traveler) => [
 ].filter(Boolean).slice(0, 3).join(' · ');
 
 const knownPreferenceSummary = (trip: Trip, traveler: Traveler) => {
-  if (isPrabhuProfile(traveler.id)) return PRABHU_PROFILE.priorities.join(' · ');
+  if (isSarahProfile(traveler.id)) return SARAH_PROFILE.priorities.join(' · ');
   const captured = trip.preferenceCollection?.calls.find((call) => call.travelerId === traveler.id && call.status === 'completed');
   return captured?.topPriorities.length ? captured.topPriorities.join(' · ') : travelerSummary(traveler);
 };
@@ -26,7 +26,7 @@ export function NegotiationExperience({ trip, onTrip }: { trip: Trip; onTrip: (t
   const agreement = trip.preferenceCollection?.agreement;
   const target = useMemo(() => {
     if (agreement) return trip.travelers.find((traveler) => traveler.id === agreement.travelerId);
-    // The demo begins with the admin's live brief and Prabhu's seeded profile already
+    // The demo begins with the admin's live brief and Sarah's seeded profile already
     // available. When a third traveler exists, make Friend 2 the live negotiator.
     return trip.travelers[2] ?? trip.travelers[1];
   }, [agreement, trip.travelers]);
@@ -90,7 +90,7 @@ export function NegotiationExperience({ trip, onTrip }: { trip: Trip; onTrip: (t
     <section className="overflow-hidden rounded-[32px] border border-[#d9e8df] bg-white">
       <div className="bg-ink px-5 py-7 text-white sm:px-8"><p className="eyebrow text-emerald-200">Main demo · one real conversation</p><div className="mt-2 flex flex-wrap items-end justify-between gap-4"><div><h2 className="text-3xl font-bold">AI Travel Negotiator</h2><p className="mt-2 max-w-3xl text-sm leading-6 text-white/70">Odyssey already knows the group. It calls one consenting friend, explains a real conflict, proposes a fair trade, and waits for explicit agreement before changing the trip.</p></div><span className="rounded-full bg-white/10 px-4 py-2 text-xs font-bold">Not a preference survey</span></div></div>
       <div className="grid gap-5 p-5 sm:p-8 lg:grid-cols-[1fr_0.9fr]">
-        <div><p className="eyebrow text-coral">Known before the call</p><div className="mt-3 grid gap-3 sm:grid-cols-3">{knownTravelers.map((traveler) => <Known key={traveler.id} name={traveler.name} value={knownPreferenceSummary(trip, traveler)} captured={traveler.id === 't-prabhu'} />)}</div>
+        <div><p className="eyebrow text-coral">Known before the call</p><div className="mt-3 grid gap-3 sm:grid-cols-3">{knownTravelers.map((traveler) => <Known key={traveler.id} name={traveler.name} value={knownPreferenceSummary(trip, traveler)} captured={traveler.id === 't-sarah'} />)}</div>
           <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-5"><p className="text-xs font-extrabold uppercase tracking-widest text-amber-800">Live comparison</p><h3 className="mt-2 text-xl font-bold text-ink">{comparisonReady ? 'Generated from the live conversation' : 'Waiting for the traveler to speak'}</h3><p className="mt-2 text-sm leading-6 text-stone-700">{comparisonReady ? <>{agreement.conflict} Odyssey generated this trade from the live answer: {agreement.proposal}</> : <>Saved profiles are ready, but no live conflict or compromise is displayed yet. Odyssey first hears {target?.name ?? 'the live traveler'}’s unscripted priority, then compares it with the group.</>}</p></div>
         </div>
         <div className="rounded-2xl bg-[#f3f8f5] p-5"><div className="flex items-center gap-2"><ShieldCheck size={20} className="text-moss" /><b className="text-ink">Call one consenting friend</b></div><p className="mt-3 text-xs leading-5 text-stone-600">Calling <b className="text-ink">{targetName}</b>. These details mirror the Friends card above.</p><label className="mt-4 block text-xs font-bold text-stone-600">{targetName} phone (E.164)<input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="+14155550123" className="mt-2 w-full rounded-xl border border-stone-200 bg-white px-4 py-3 text-sm text-ink" /></label><label className="mt-4 flex items-start gap-3 text-xs leading-5 text-stone-700"><input type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} className="mt-0.5 h-4 w-4 accent-[#245c4f]" /><span>I confirm {targetName} consented to a short demo call. Never enter a judge’s number without permission.</span></label><button disabled={!target || !consent || busy || !/^\+[1-9]\d{7,14}$/.test(phone.trim())} onClick={() => void start()} className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-moss px-4 py-3.5 text-sm font-bold text-white disabled:opacity-40"><Phone size={17} />{busy ? 'Negotiating…' : `Call ${targetName} and negotiate`}</button><p className="mt-3 text-xs leading-5 text-stone-500">Live mode uses Vocal Bridge. If credentials, CLI, or outbound quota are unavailable, JourneyOS automatically runs the same flow as a labeled scripted fallback.</p></div>

@@ -1,6 +1,6 @@
 import { HeartHandshake, Sparkles } from 'lucide-react';
 import type { Interest, Trip } from '../types';
-import { PRABHU_PROFILE, isPrabhuProfile } from '../constants/demo-profiles';
+import { SARAH_PROFILE, isSarahProfile } from '../constants/demo-profiles';
 
 const interests: Interest[] = ['culture', 'history', 'food', 'photography', 'shopping', 'nightlife', 'nature'];
 const mood = (score?: number) => score === undefined
@@ -25,14 +25,14 @@ export function TravelerFitOverview({ trip }: { trip: Trip }) {
     <div className="grid gap-3 p-5 sm:p-7 lg:grid-cols-2">{trip.travelers.map((traveler, index) => {
       const call = calls.get(traveler.id);
       const isAdmin = index === 0;
-      const isPrabhu = isPrabhuProfile(traveler.id);
-      const briefCaptured = isAdmin || isPrabhu;
-      const top = isPrabhu ? PRABHU_PROFILE.priorities : interests.slice().sort((left, right) => traveler.interests[right] - traveler.interests[left]).slice(0, 3);
-      const avoids = isPrabhu ? [PRABHU_PROFILE.keepLight] : interests.slice().sort((left, right) => traveler.interests[left] - traveler.interests[right]).slice(0, 1);
+      const isSarah = isSarahProfile(traveler.id);
+      const briefCaptured = isAdmin || isSarah;
+      const top = isSarah ? SARAH_PROFILE.priorities : interests.slice().sort((left, right) => traveler.interests[right] - traveler.interests[left]).slice(0, 3);
+      const avoids = isSarah ? [SARAH_PROFILE.keepLight] : interests.slice().sort((left, right) => traveler.interests[left] - traveler.interests[right]).slice(0, 1);
       const personMood = mood(call?.happiness ?? (briefCaptured ? 82 : undefined));
-      const profileLine = isPrabhu ? `${PRABHU_PROFILE.pace} · ${PRABHU_PROFILE.food} · ${PRABHU_PROFILE.mustDo}` : `${traveler.pacePreference} pace · ${traveler.foodPreference}`;
+      const profileLine = isSarah ? `${SARAH_PROFILE.pace} · ${SARAH_PROFILE.food} · ${SARAH_PROFILE.mustDo}` : `${traveler.pacePreference} pace · ${traveler.foodPreference}`;
       const status = briefCaptured ? 'Brief captured' : call?.status === 'completed' ? 'Call result captured' : call?.status === 'dialing' ? 'Call in progress' : 'Preference call pending';
-      const explanation = isPrabhu ? `${PRABHU_PROFILE.summary} ${PRABHU_PROFILE.compromise}` : isAdmin ? 'Captured from the admin’s live trip brief.' : call?.happinessExplanation || call?.compromise;
+      const explanation = isSarah ? `${SARAH_PROFILE.summary} ${SARAH_PROFILE.compromise}` : isAdmin ? 'Captured from the admin’s live trip brief.' : call?.happinessExplanation || call?.compromise;
       return <article key={traveler.id} className="rounded-3xl border border-stone-200 bg-[#fafbf9] p-5"><div className="flex flex-wrap items-start justify-between gap-3"><div className="flex items-center gap-3"><span className="grid h-11 w-11 place-items-center rounded-full bg-ink text-xs font-bold text-white">{traveler.initials}</span><div><p className="font-bold text-ink">{traveler.name}</p><p className="text-xs capitalize text-stone-500">{profileLine}</p></div></div><span className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-bold ${personMood.tone}`}><MoodFace expression={personMood.expression} small />{status}</span></div><div className="mt-4 grid gap-3 sm:grid-cols-2"><div><p className="text-[10px] font-bold uppercase tracking-wider text-moss">Would love</p><div className="mt-2 flex flex-wrap gap-1.5">{top.map((interest) => <span key={interest} className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold capitalize text-moss">{interest}</span>)}</div></div><div><p className="text-[10px] font-bold uppercase tracking-wider text-coral">Keep light</p><div className="mt-2 flex flex-wrap gap-1.5">{avoids.map((interest) => <span key={interest} className="rounded-full bg-rose-50 px-2.5 py-1 text-xs font-semibold capitalize text-coral">{interest}</span>)}</div></div></div>{explanation ? <div className="mt-4 rounded-2xl bg-white p-3 text-xs leading-5 text-stone-600 ring-1 ring-stone-100"><b className="text-ink">Why this works:</b> {explanation}</div> : <p className="mt-4 text-xs leading-5 text-stone-500">Friend 2’s actual call outcome and accepted trade will appear here after the negotiation.</p>}</article>;
     })}</div>
     <div className="mx-5 mb-5 flex flex-col gap-3 rounded-2xl bg-ink p-4 text-white sm:mx-7 sm:mb-7 sm:flex-row sm:items-center"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-white/10"><HeartHandshake className="text-emerald-200" size={20} /></span><div className="min-w-0"><p className="text-xs font-bold uppercase tracking-wider text-emerald-200">The fair trade</p><p className="mt-1 text-sm leading-6 text-white/75">{trip.groupPreference.explanation}</p></div><Sparkles className="ml-auto hidden shrink-0 text-amber-200 sm:block" /></div>

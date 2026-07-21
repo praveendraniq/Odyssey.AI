@@ -1,6 +1,6 @@
 # JourneyOS — Project Context and Handoff
 
-Last updated: July 20, 2026
+Last updated: July 21, 2026
 
 ## Context maintenance policy
 
@@ -39,7 +39,7 @@ Current Git publication:
 
 - Working branch: `agent/live-trip-planning`
 - User fork: `praveendraniq/journeyOS`
-- The partner branch `hemalekamohanram/journeyOS:codex/journeyos-demo-ready` was inspected and selectively reconciled on July 18, 2026. The current tree includes its dynamic negotiation concept, page-aware Live Trip voice commands, and Maps JavaScript route rendering while preserving the newer structured voice brief, explicit `server/.env` loading, friend validation/callbacks, selected-hotel map anchoring, and Sabre authentication behavior.
+- The partner branch `hemalekamohanram/journeyOS:codex/journeyos-demo-ready` was inspected and selectively reconciled against the live demo branch. The current tree keeps its dynamic negotiation concept, page-aware Live Trip voice commands, and Maps JavaScript route rendering while preserving the newer structured voice brief, explicit `server/.env` loading, friend validation/callbacks, selected-hotel map anchoring, and Sabre authentication behavior.
 
 ## Local development
 
@@ -259,9 +259,9 @@ Important context:
 - Keep the agent network concept, but do not expose a redundant standalone agent screen.
 - Voice should feel continuous across pages while maintaining confirmed context.
 - The checked-in Vocal Bridge prompt consolidates the proven Travel Mediator rules with the partner's page-aware Concierge and AI Travel Negotiator flow. It supports four explicit modes: admin planning, short friend preference calls, friend negotiation calls, and page assistance. It preserves strict city/date/brief validation, partial-brief recovery, silent HTTP callback saving, graceful hang-up behavior, authoritative `journeyos_context`, and `show_day` requests such as “show Day 3.”
-- Negotiation demo sequence: Hema's live admin brief and Prabhu's seeded Friend 1 profile are preloaded, then the Negotiator calls Friend 2 (when a third traveler exists). It detects a conflict only from Friend 2's spoken priority, proposes a specific trade, requires explicit acceptance, and leaves the itinerary unchanged until the admin applies the agreement.
-- Trip Dashboard now makes the collection state explicit: Hema and Prabhu show `Brief captured` from the outset, while Friend 2 remains `Awaiting Friend 2 call` (or in-progress) until the live negotiation callback supplies their actual call result.
-- Prabhu's Planning card uses the canonical seeded profile: early dinner, moderate walking, pescetarian food, and the corresponding early-dinner/easy-transit compromise. The profile is shared by Planning, Dashboard, Group Vibe, and Negotiation context.
+- Negotiation demo sequence: Hema's live admin brief and Sarah's seeded Friend 1 profile are preloaded, then the Negotiator calls Friend 2 (when a third traveler exists). It detects a conflict only from Friend 2's spoken priority, proposes a specific trade, requires explicit acceptance, and leaves the itinerary unchanged until the admin applies the agreement.
+- Trip Dashboard now makes the collection state explicit: Hema and Sarah show `Brief captured` from the outset, while Friend 2 remains `Awaiting Friend 2 call` (or in-progress) until the live negotiation callback supplies their actual call result.
+- Sarah's Planning card uses the canonical seeded profile: early dinner, moderate walking, pescetarian food, and the corresponding early-dinner/easy-transit compromise. The profile is shared by Planning, Dashboard, Group Vibe, and Negotiation context.
 - Sabre CERT search confirmation is now an in-app panel in Booking rather than a browser `window.confirm` dialog. It names the exact route, confirms that CERT inventory is reference-only, and provides explicit Search / Not now actions.
 - After the admin’s sandbox advance is captured, Booking now offers `Prepare payment requests`: it creates each non-admin friend’s separate PayPal sandbox link and message preview, then enables `Copy payment messages`. No SMS, email, or payment request is automatically sent. The verbose Supplier fulfillment panel was replaced by one concise sandbox/supplier-booking note.
 - The same batch action is also placed immediately below `Reset to equal shares` in Step 2 as `Collect payment from friends`, making the next admin action visible alongside the individual split amounts.
@@ -282,12 +282,12 @@ Important context:
 - Negotiation outbound calls automatically switch to the labeled scripted flow when Vocal Bridge credentials, CLI execution, or outbound quota are unavailable; disruption controls remain connected to the active-day replan API.
 - Live itinerary layout order is: journey map and timeline, Live activity progress, disruption controls, then the Why this order works before/optimised comparison at the bottom.
 - Booking and payment should remain minimal and voice-driven.
-- New trips start with two populated defaults: admin Hema (`+14152220000`) and Friend 1 Prabhu Siddharth (`+14156290471`). Prabhu is the visible example profile: early dinner, moderate walking, and pescetarian food. A four-traveler request therefore creates the two defaults plus editable Friend 2 and Friend 3 slots.
+- New trips start with two populated defaults: admin Hema (`+14152220000`) and Friend 1 Sarah Siddharth (`+14156290471`). Sarah is the visible example profile: early dinner, moderate walking, and pescetarian food. A four-traveler request therefore creates the two defaults plus editable Friend 2 and Friend 3 slots.
 - On Plan Together, the large voice control ends the Vocal Bridge session when pressed during an active conversation; the explicit `End voice chat` button provides the same action. The persistent page voice sends authoritative `journeyos_context` (page, polished brief, dates, interests, food needs, roster, selected booking, and active day) after every page change while connected. The former sticky American Airlines savings alert was removed.
 - Plan Together starts with an empty editable brief when no voice or saved brief exists. The microphone-preview fallback no longer inserts a Tokyo demo request.
 - The global voice dock, including its transcript panel and End call control, is visible on Plan Together as well as every other page. Negotiation consent details mirror Friend 2's in-progress Friends-card edits and reset consent whenever its name or phone changes; starting the call persists those edits first.
-- Hydration migrates the legacy seeded `t-sarah` roster entry to Friend 1 Prabhu and the old default Prabhu admin to Hema, so existing browser-stored demo state updates automatically.
-- The checked-in Vocal Bridge negotiator prompt includes a Dallas-only detailed live-music/timing playbook: a live-music, nightlife, late-evening, or late-dinner request is treated as a material conflict with Prabhu's early vegetarian dinner constraint. It offers a 6 PM shared dinner plus optional live music, then pauses for an explicit response before saving the negotiated outcome.
+- Hydration migrates the legacy seeded `t-sarah` roster entry to Friend 1 Sarah and the old default Sarah admin to Hema, so existing browser-stored demo state updates automatically.
+- The checked-in Vocal Bridge negotiator prompt includes a Dallas-only detailed live-music/timing playbook: a live-music, nightlife, late-evening, or late-dinner request is treated as a material conflict with Sarah's early vegetarian dinner constraint. It offers a 6 PM shared dinner plus optional live music, then pauses for an explicit response before saving the negotiated outcome.
 - Starting a negotiation now preserves existing completed preference-call details in `knownProfiles` instead of replacing them with generic interest tags. The outbound context explicitly identifies `FRIEND_NEGOTIATION_CALL` mode and supplies the Dallas live-music/early-vegetarian-dinner trade when that scenario applies.
 - Live Trip should show real preference-aware daily stops and mapped directions.
 - Day 1 is selected whenever a newly accepted trip brief creates an itinerary.
@@ -300,11 +300,12 @@ Important context:
 
 ## Current validation status
 
-At the time this handoff was written:
+At the time this handoff was last updated:
 
 ```text
-npm run build  — passed
-npm test       — 22 tests passed
+npm --prefix client run build  — passed
+npm --prefix server run build  — passed
+npm test                     — 29 tests passed
 ```
 
 The test suite includes regression coverage for:
@@ -371,7 +372,7 @@ After the admin payment is captured, Booking shows an optional Sabre CERT test-b
 # Negotiation reliability update — 2026-07-18
 
 - The temporary in-app “Generate a fair trade” and manual acceptance workflow was removed. Negotiation is voice-agent-driven: Vocal Bridge speaks the comparison and records the final accepted/declined outcome through the secured callback.
-- Dallas evening requests such as late dinner, live music, nightlife, or going out are compared against Prabhu’s saved early pescetarian-friendly dinner profile. The concrete demo trade is dinner together at 18:00 followed by optional live music.
+- Dallas evening requests such as late dinner, live music, nightlife, or going out are compared against Sarah’s saved early pescetarian-friendly dinner profile. The concrete demo trade is dinner together at 18:00 followed by optional live music.
 - Vocal Bridge remains the voice transport and can still post a completed result through the secured callback. The app is now the authority for conflict detection, acceptance state, and admin application.
 - The Negotiator screen is voice-only: it no longer exposes manual priority or acceptance inputs. It waits for the outbound Vocal Bridge agent to complete the spoken negotiation and post the secured result; the admin’s only UI action is applying an accepted agreement.
 - The Vocal Bridge Negotiator prompt now requires a clear contradiction highlight: caller priority, counterpart’s confirmed need, practical consequence, then exactly one concrete trade before seeking an explicit spoken decision.

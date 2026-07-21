@@ -201,7 +201,7 @@ export const createApp = () => {
       negotiationSession: session ? { travelerId: session.travelerId, travelerName: session.travelerName, affectedDayHint: session.affectedDay, phase: 'discover-live-preference' } : undefined,
       knownProfiles: trip.preferenceCollection?.calls.filter((call) => call.status === 'completed').map((call) => ({ travelerId: call.travelerId, name: call.name, topPriorities: call.topPriorities, summary: call.summary })) ?? [],
       instruction: session
-        ? `This is an AI Travel Negotiator call. Do not ask for trip basics or run a survey. First ask ${session.travelerName} for the one thing that matters most, then wait. Treat the admin as the primary anchor; a matching knownProfiles preference strengthens that anchor. When a live request competes with an anchor, food/pace constraint, budget, or shared time window: acknowledge the request, name the anchor and its owner, explain the practical contradiction, offer exactly one concrete trade, ask “Would that work for you?”, then stop speaking. Do not accept, save, or close until the friend explicitly says yes, okay, I agree, or I can adjust. If the friend says no, offer one alternative and wait. If they still decline, save the unresolved result as accepted false. For Dallas late dinner, nightlife, or live music against Prabhu’s early pescetarian dinner, offer shared dinner around six followed by optional live music. Never claim the itinerary changed. Submit the actual dialogue and structured result to the secured callback.`
+        ? `This is an AI Travel Negotiator call. Do not ask for trip basics or run a survey. First ask ${session.travelerName} for the one thing that matters most, then wait. Treat the admin as the primary anchor; a matching knownProfiles preference strengthens that anchor. When a live request competes with an anchor, food/pace constraint, budget, or shared time window: acknowledge the request, name the anchor and its owner, explain the practical contradiction, offer exactly one concrete trade, ask “Would that work for you?”, then stop speaking. Do not accept, save, or close until the friend explicitly says yes, okay, I agree, or I can adjust. If the friend says no, offer one alternative and wait. If they still decline, save the unresolved result as accepted false. For Dallas late dinner, nightlife, or live music against Sarah’s early pescetarian dinner, offer shared dinner around six followed by optional live music. Never claim the itinerary changed. Submit the actual dialogue and structured result to the secured callback.`
         : 'Use this as established context. Do not ask the callee to repeat known facts. Collect a concise personal priority or constraint for later comparison.',
     });
   });
@@ -318,19 +318,19 @@ export const createApp = () => {
     try { const input = preferenceDecisionSchema.parse(req.body); if (input.trip) store.hydrate(input.trip as ReturnType<typeof store.getTrip>); res.json({ trip: store.applyPreferenceDecision(input.interestScores as ReturnType<typeof store.getTrip>['groupPreference']['interestScores']) }); }
     catch (error) { next(error); }
   });
-  app.post('/api/planner/simulate-prabhu-interview', (req, res, next) => {
+  app.post('/api/planner/simulate-sarah-interview', (req, res, next) => {
     try {
       const { trip } = simulatedInterviewSchema.parse(req.body);
       if (trip) store.hydrate(trip as ReturnType<typeof store.getTrip>);
       res.json({ trip: store.completeSimulatedMayaInterview(), summary: 'Maya’s preference conflicts with the culture-heavy Day 2. I kept the family shrine, added Akihabara, and moved the early activity later. Maya’s satisfaction rises from 42% to 81% while every traveler stays above 72%.' });
     } catch (error) { next(error); }
   });
-  app.post('/api/planner/call-prabhu', async (req, res, next) => {
+  app.post('/api/planner/call-sarah', async (req, res, next) => {
     try {
       const { trip } = simulatedInterviewSchema.parse(req.body);
       if (trip) store.hydrate(trip as ReturnType<typeof store.getTrip>);
-      await planner.callPrabhuAgent();
-      res.json({ trip: store.startPrabhuPreferenceCall() });
+      await planner.callSarahAgent();
+      res.json({ trip: store.startSarahPreferenceCall() });
     } catch (error) { next(error); }
   });
 

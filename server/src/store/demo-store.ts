@@ -8,14 +8,14 @@ const interests = (scores: Partial<Record<Interest, number>>): Record<Interest, 
 
 const travelers: Traveler[] = [
   { id: 't-admin', name: 'Hema', initials: 'HE', phone: '+14152220000', budgetPreference: 'balanced', activityLevel: 3, pacePreference: 'balanced', foodPreference: 'Preferences from your brief', interests: interests({ food: 5, culture: 4, photography: 3 }) },
-  { id: 't-prabhu', name: 'Prabhu Siddharth', initials: 'PS', phone: '+14156290471', budgetPreference: 'balanced', activityLevel: 3, pacePreference: 'balanced', foodPreference: 'Pescetarian food · early dinner', interests: interests({ food: 5, photography: 4, shopping: 4, nature: 3 }) },
+  { id: 't-sarah', name: 'Sarah Siddharth', initials: 'PS', phone: '+14156290471', budgetPreference: 'balanced', activityLevel: 3, pacePreference: 'balanced', foodPreference: 'Pescetarian food · early dinner', interests: interests({ food: 5, photography: 4, shopping: 4, nature: 3 }) },
 ];
 const DEFAULT_FRIEND = travelers[1];
-const defaultPrabhuPreference = (): PreferenceCollection => ({
+const defaultSarahPreference = (): PreferenceCollection => ({
   adminName: 'Hema', adminWeight: 1.5, source: 'mock', status: 'pending',
-  calls: [{ travelerId: 't-prabhu', name: 'Prabhu Siddharth', phone: '+14156290471', status: 'completed', happiness: 82, topPriorities: ['Early dinner', 'Moderate walking', 'Pescetarian food'], summary: 'Prabhu prefers an early dinner, moderate walking, and pescetarian food.', compromise: 'Schedule a shared early dinner, then make any late-night activity optional.' }],
-  negotiation: 'Prabhu’s example preferences are ready for the group plan.',
-  approvalSummary: 'Example preference profile loaded for Prabhu.',
+  calls: [{ travelerId: 't-sarah', name: 'Sarah Siddharth', phone: '+14156290471', status: 'completed', happiness: 82, topPriorities: ['Early dinner', 'Moderate walking', 'Pescetarian food'], summary: 'Sarah prefers an early dinner, moderate walking, and pescetarian food.', compromise: 'Schedule a shared early dinner, then make any late-night activity optional.' }],
+  negotiation: 'Sarah’s example preferences are ready for the group plan.',
+  approvalSummary: 'Example preference profile loaded for Sarah.',
 });
 
 const route = (id: string, day: number, time: string, title: string, subtitle: string, category: ItineraryItem['category'], x: number, y: number, durationMins: number, travelMins: number, status: ItineraryItem['status'], weatherSensitive = false): ItineraryItem => ({
@@ -177,7 +177,7 @@ const itineraryFromPlaces = (destination: string, duration: number, places: Plac
 const groupPreference: GroupPreference = {
   interestScores: { culture: 4.75, history: 3.5, food: 4.25, photography: 3.5, shopping: 2, nightlife: 2.25, nature: 3.25 },
   recommendedPace: 'Balanced discovery',
-  explanation: 'The route balances Hema’s food and culture priorities with Prabhu’s local-food, photography, and shopping interests.',
+  explanation: 'The route balances Hema’s food and culture priorities with Sarah’s local-food, photography, and shopping interests.',
 };
 
 export class DemoStore {
@@ -206,7 +206,7 @@ export class DemoStore {
       events: [],
       progress: 28,
       progressState: { completionPercent: 23, scheduleVarianceMins: 0, completedStopIds: ['i-hotel', 'i-sensoji', 'i-izakaya'], skippedStopIds: [] },
-      preferenceCollection: defaultPrabhuPreference(),
+      preferenceCollection: defaultSarahPreference(),
     };
   }
 
@@ -230,7 +230,7 @@ export class DemoStore {
     if (legacyFriend) {
       Object.assign(legacyFriend, structuredClone(DEFAULT_FRIEND));
       const legacyAdmin = migrated.travelers.find((traveler) => traveler.id === 't-admin');
-      if (legacyAdmin?.name === 'Prabhu Siddharth') {
+      if (legacyAdmin?.name === 'Sarah Siddharth') {
         legacyAdmin.name = DEFAULT_ADMIN.name;
         legacyAdmin.phone = DEFAULT_ADMIN.phone;
         legacyAdmin.initials = 'HE';
@@ -238,23 +238,23 @@ export class DemoStore {
       if (migrated.preferenceCollection) {
         migrated.preferenceCollection.adminName = legacyAdmin?.name ?? DEFAULT_ADMIN.name;
         migrated.preferenceCollection.calls = migrated.preferenceCollection.calls.map((call) => call.travelerId === 't-sarah'
-          ? { ...call, ...defaultPrabhuPreference().calls[0] }
+          ? { ...call, ...defaultSarahPreference().calls[0] }
           : call,
         );
         const agreement = migrated.preferenceCollection.agreement;
         if (agreement?.counterpartId === 't-sarah') {
-          agreement.counterpartId = 't-prabhu';
+          agreement.counterpartId = 't-sarah';
           agreement.counterpartName = DEFAULT_FRIEND.name;
         }
       }
     }
-    const prabhu = migrated.travelers.find((traveler) => traveler.id === 't-prabhu');
-    if (prabhu) Object.assign(prabhu, structuredClone(DEFAULT_FRIEND));
-    if (migrated.preferenceCollection && prabhu) {
-      const canonicalPrabhuCall = defaultPrabhuPreference().calls[0];
-      const prabhuCall = migrated.preferenceCollection.calls.find((call) => call.travelerId === 't-prabhu');
-      if (prabhuCall) Object.assign(prabhuCall, canonicalPrabhuCall);
-      else migrated.preferenceCollection.calls.unshift(canonicalPrabhuCall);
+    const sarah = migrated.travelers.find((traveler) => traveler.id === 't-sarah');
+    if (sarah) Object.assign(sarah, structuredClone(DEFAULT_FRIEND));
+    if (migrated.preferenceCollection && sarah) {
+      const canonicalSarahCall = defaultSarahPreference().calls[0];
+      const sarahCall = migrated.preferenceCollection.calls.find((call) => call.travelerId === 't-sarah');
+      if (sarahCall) Object.assign(sarahCall, canonicalSarahCall);
+      else migrated.preferenceCollection.calls.unshift(canonicalSarahCall);
     }
     migrated.travelDna.confidence ??= 50;
     migrated.travelDna.changes ??= [];
@@ -667,11 +667,11 @@ export class DemoStore {
     return { trip: this.getTrip(), message: `${targets.map((item) => item.title).join(', ')} ${verb}.`, affectedStopIds: targets.map((item) => item.id) };
   }
 
-  completeSimulatedPrabhuInterview(): Trip {
-    const maya = this.trip.travelers.find((traveler) => traveler.name === 'Prabhu') ?? this.trip.travelers[1];
+  completeSimulatedSarahInterview(): Trip {
+    const maya = this.trip.travelers.find((traveler) => traveler.name === 'Sarah') ?? this.trip.travelers[1];
     if (!maya) throw new Error('Add a traveler before starting the preference interview.');
     Object.assign(maya, {
-      name: 'Prabhu', initials: 'PR', pacePreference: 'balanced' as const, foodPreference: 'Street food',
+      name: 'Sarah', initials: 'PR', pacePreference: 'balanced' as const, foodPreference: 'Street food',
       interests: interests({ culture: 1, history: 1, food: 5, photography: 3, shopping: 5, nightlife: 3, nature: 2 }),
     });
     const shrine = this.trip.itinerary.find((item) => item.id === 'i-meiji');
@@ -693,11 +693,11 @@ export class DemoStore {
   }
 
   completeSimulatedMayaInterview(): Trip {
-    return this.completeSimulatedPrabhuInterview();
+    return this.completeSimulatedSarahInterview();
   }
 
-  startPrabhuPreferenceCall(): Trip {
-    const maya = this.trip.travelers.find((traveler) => traveler.name === 'Prabhu') ?? this.trip.travelers[1];
+  startSarahPreferenceCall(): Trip {
+    const maya = this.trip.travelers.find((traveler) => traveler.name === 'Sarah') ?? this.trip.travelers[1];
     if (!maya) throw new Error('Add a traveler before starting the preference interview.');
     this.trip.preferenceCollection = {
       adminName: this.trip.travelers[0]?.name ?? 'Trip admin', adminWeight: 1.5, source: 'vocal-bridge', status: 'pending',
@@ -785,7 +785,7 @@ export class DemoStore {
     if (selectedFlight && selectedHotel) this.recalculateBudget(selectedFlight.price * normalizedRequest.travelers, selectedHotel.totalPrice);
     this.trip.events = [{ id: `brief-${Date.now()}`, type: 'tired', title: `${normalizedRequest.destination} trip brief created`, createdAt: new Date().toISOString(), explanation: `${places.length >= 2 ? 'Google Places sourced real attractions for' : 'A curated route is ready for'} your ${duration}-day ${normalizedRequest.destination} itinerary. Every page now reflects this proposed trip.` }];
     this.trip.groupPreference = { ...this.trip.groupPreference, explanation: `The ${normalizedRequest.destination} route prioritizes ${normalizedRequest.interests.slice(0, 3).join(', ')} while keeping the group’s preferred pace.` };
-    this.trip.preferenceCollection = defaultPrabhuPreference();
+    this.trip.preferenceCollection = defaultSarahPreference();
     this.trip.briefTranscript = briefTranscript;
     this.trip.expenses = [];
     return this.getTrip();

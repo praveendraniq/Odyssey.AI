@@ -73,7 +73,7 @@ export class VocalBridgeService {
       throw new Error(`Could not place ${traveler.name}'s negotiation call: ${detail}`);
     }
   }
-  async callPrabhuAgent(): Promise<void> {
+  async callSarahAgent(): Promise<void> {
     if (!config.vocalBridge.mayaPhone) throw new Error('Maya’s Vocal Bridge phone number is not configured.');
     try {
       // The currently selected `vb` CLI agent is the Odyssey.AI main agent. It
