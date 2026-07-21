@@ -1,5 +1,7 @@
 import express from 'express';
 import cors from 'cors';
+import { existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 import { config } from './config.js';
 import { DemoStore } from './store/demo-store.js';
@@ -146,22 +148,27 @@ export const createApp = () => {
       // any agent selected by X-Agent-Id. Agent-scoped keys can be rejected
       // by this endpoint, so Booking intentionally uses the proven account
       // key while keeping a distinct booking agent ID.
-      ? { label: 'booking agent', id: config.vocalBridge.bookingAgentId, apiKey: config.vocalBridge.apiKey, participantName: 'Odyssey booking traveler' }
+      // Use the Booking Agent-scoped key so Vocal Bridge cannot fall back to
+      // the account's default Mediator agent for this web session.
+      ? { label: 'booking agent', id: config.vocalBridge.bookingAgentId, apiKey: config.vocalBridge.bookingApiKey, fallbackApiKey: undefined, participantName: 'Odyssey booking traveler' }
       : requestedAgent === 'maya'
-        ? { label: 'Maya agent', id: config.vocalBridge.mayaAgentId, apiKey: config.vocalBridge.mayaApiKey || config.vocalBridge.apiKey, participantName: 'Maya traveler agent' }
-        : { label: 'agent', id: config.vocalBridge.agentId, apiKey: config.vocalBridge.apiKey, participantName: 'Odyssey traveler' };
+        ? { label: 'Maya agent', id: config.vocalBridge.mayaAgentId, apiKey: config.vocalBridge.mayaApiKey || config.vocalBridge.apiKey, fallbackApiKey: config.vocalBridge.apiKey, participantName: 'Maya traveler agent' }
+        : { label: 'agent', id: config.vocalBridge.agentId, apiKey: config.vocalBridge.apiKey, fallbackApiKey: undefined, participantName: 'Odyssey traveler' };
     if (!voiceAgent.apiKey || !voiceAgent.id) return res.status(503).json({ error: `Vocal Bridge ${voiceAgent.label} is not configured on the server.` });
     const baseUrl = (config.vocalBridge.baseUrl || 'https://vocalbridgeai.com').replace(/\/$/, '');
-    const response = await fetch(`${baseUrl}/api/v1/token`, {
-      method: 'POST',
-      headers: {
-        'X-API-Key': voiceAgent.apiKey,
-        'X-Agent-Id': voiceAgent.id,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ participant_name: participant_name ?? voiceAgent.participantName }),
-    });
-    const body = await response.json().catch(() => ({}));
+    const keys = [voiceAgent.apiKey, voiceAgent.fallbackApiKey].filter((key, index, values): key is string => Boolean(key) && values.indexOf(key) === index);
+    let response: Response | undefined;
+    let body: unknown = {};
+    for (const key of keys) {
+      response = await fetch(`${baseUrl}/api/v1/token`, {
+        method: 'POST',
+        headers: { 'X-API-Key': key, 'X-Agent-Id': voiceAgent.id, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ participant_name: participant_name ?? voiceAgent.participantName }),
+      });
+      body = await response.json().catch(() => ({}));
+      if (response.ok || response.status !== 401) break;
+    }
+    if (!response) return res.status(503).json({ error: `Vocal Bridge ${voiceAgent.label} is not configured on the server.` });
     if (!response.ok) {
       const detail = typeof body === 'object' && body && 'error' in body ? String(body.error) : `Vocal Bridge returned ${response.status}`;
       return res.status(response.status).json({ error: detail });
@@ -198,11 +205,11 @@ export const createApp = () => {
         interests: trip.request.interests,
         foodPreferences: trip.request.foodPreferences,
       },
-      negotiationSession: session ? { travelerId: session.travelerId, travelerName: session.travelerName, affectedDayHint: session.affectedDay, phase: 'discover-live-preference' } : undefined,
+      negotiationSession: session ? { travelerId: session.travelerId, travelerName: session.travelerName, phoneNumber: trip.travelers.find((traveler) => traveler.id === session.travelerId)?.phone, affectedDayHint: session.affectedDay, phase: 'discover-live-preference' } : undefined,
       knownProfiles: trip.preferenceCollection?.calls.filter((call) => call.status === 'completed').map((call) => ({ travelerId: call.travelerId, name: call.name, topPriorities: call.topPriorities, summary: call.summary })) ?? [],
       instruction: session
-        ? `This is an AI Travel Negotiator call. Do not ask for trip basics or run a survey. First ask ${session.travelerName} for the one thing that matters most, then wait. Treat the admin as the primary anchor; a matching knownProfiles preference strengthens that anchor. When a live request competes with an anchor, food/pace constraint, budget, or shared time window: acknowledge the request, name the anchor and its owner, explain the practical contradiction, offer exactly one concrete trade, ask “Would that work for you?”, then stop speaking. Do not accept, save, or close until the friend explicitly says yes, okay, I agree, or I can adjust. If the friend says no, offer one alternative and wait. If they still decline, save the unresolved result as accepted false. For Dallas late dinner, nightlife, or live music against Sarah’s early pescetarian dinner, offer shared dinner around six followed by optional live music. Never claim the itinerary changed. Submit the actual dialogue and structured result to the secured callback.`
-        : 'Use this as established context. Do not ask the callee to repeat known facts. Collect a concise personal priority or constraint for later comparison.',
+        ? `STRICT NEGOTIATION POLICY. Call get_trip_context before speaking and use its admin profile, knownProfiles, active traveler, and itinerary as authoritative. Never restart planning or ask for origin, destination, dates, travelers, budget, or already-known preferences. Begin exactly: “Hi ${session.travelerName}, I’m Odyssey, the AI Travel Mediator helping ${trip.travelers[0]?.name ?? 'the trip admin'} coordinate your group’s trip to ${trip.request.destination}. What is the one thing that matters most to you, or one constraint I should protect?” Then wait. Compare Sid’s live answer against Hema/admin priorities and Sarah’s completed preferences; explicitly use those preferences and identify any real competing needs. If there is a conflict, name whose need is protected, explain the practical contradiction, offer exactly one concrete trade from the active itinerary, ask “Would that work for you?”, and stop speaking. Never accept on Sid’s behalf. Save accepted true only after Sid explicitly says yes, okay, I agree, or I can adjust. If Sid rejects it, offer one alternative and wait; if still rejected, save accepted false and the unresolved preference. Never claim the itinerary changed. Submit the actual dialogue and structured result to the secured callback.`
+        : `This is an outbound friend preference call. Trip basics are already known; never ask the callee to repeat them. Before speaking, greet ${trip.travelers.find((traveler) => traveler.id === (trip.travelers[1]?.id))?.name ?? 'the traveler'} as follows: “Hi, I’m Odyssey, helping ${trip.travelers[0]?.name ?? 'the trip admin'} plan the ${trip.request.destination} trip. I’ll ask three quick questions about your must-do, food, and pace.” Then collect only those preferences and save the structured result.`,
     });
   });
   app.post('/api/preference-calls/complete', (req, res, next) => {
@@ -527,6 +534,18 @@ export const createApp = () => {
       res.json({ trip: store.deleteReceipt(req.params.receiptId) });
     } catch (error) { next(error); }
   });
+
+  const clientDistDir = fileURLToPath(new URL('../../client/dist', import.meta.url));
+  const clientIndexFile = fileURLToPath(new URL('../../client/dist/index.html', import.meta.url));
+  if (existsSync(clientIndexFile)) {
+    app.use(express.static(clientDistDir));
+    app.get(/^(?!\/api\/).*/, (req, res, next) => {
+      if (req.method !== 'GET' || !req.accepts('html')) return next();
+      res.sendFile(clientIndexFile, (error) => {
+        if (error) next(error);
+      });
+    });
+  }
 
   app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     const message = error instanceof z.ZodError ? error.issues.map((issue) => issue.message).join(', ') : error instanceof Error ? error.message : 'Unexpected error';

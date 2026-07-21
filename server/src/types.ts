@@ -23,6 +23,17 @@ export interface Traveler {
   foodPreference: string;
   interests: Record<Interest, number>;
   phone?: string;
+  status?: 'pending' | 'ready_to_call' | 'calling' | 'preferences_ready' | 'negotiation_complete' | 'admin_review_needed';
+  preferences?: {
+    priorities?: string[];
+    experience?: string;
+    foodRequirements?: string[];
+    avoidances?: string[];
+    pace?: 'easy' | 'balanced' | 'active';
+    summary?: string;
+    recommendation?: string;
+    matchPercentage?: number;
+  };
 }
 
 export interface GroupPreference {

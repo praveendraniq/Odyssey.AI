@@ -59,3 +59,11 @@ test('brief extraction supports structured traveler wording with destination the
   assert.equal(result.request.travelers, 3);
   assert.equal(result.request.budget, 4000);
 });
+
+test('brief extraction keeps budget, dates, and greetings out of city fields', async () => {
+  const planner = new VocalBridgeService();
+  const result = await planner.extractTrip('Flying from San Francisco with a four-thousand-dollar budget October twelfth. Destination October sixteenth hi.');
+  assert.equal(result.request.origin, 'San Francisco');
+  assert.equal(/budget|october/i.test(result.request.origin), false);
+  assert.notEqual(result.request.destination, 'October Sixteenth Hi');
+});

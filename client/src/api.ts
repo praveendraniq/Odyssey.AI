@@ -1,7 +1,9 @@
 import type { PaymentOrder, PreferenceCollection, ReplanType, Trip, TripRequest, WeatherObservation } from './types';
 
+const apiBaseUrl = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '') ?? '';
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(path, { headers: { 'Content-Type': 'application/json', ...init?.headers }, ...init });
+  const response = await fetch(`${apiBaseUrl}${path}`, { headers: { 'Content-Type': 'application/json', ...init?.headers }, ...init });
   const body = await response.json() as T & { error?: string };
   if (!response.ok) throw new Error(body.error ?? 'Something went wrong');
   return body;

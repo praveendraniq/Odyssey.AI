@@ -7,13 +7,53 @@ const interests = (scores: Partial<Record<Interest, number>>): Record<Interest, 
 });
 
 const travelers: Traveler[] = [
-  { id: 't-admin', name: 'Hema', initials: 'HE', phone: '+14152220000', budgetPreference: 'balanced', activityLevel: 3, pacePreference: 'balanced', foodPreference: 'Preferences from your brief', interests: interests({ food: 5, culture: 4, photography: 3 }) },
-  { id: 't-sarah', name: 'Sarah Siddharth', initials: 'PS', phone: '+14156290471', budgetPreference: 'balanced', activityLevel: 3, pacePreference: 'balanced', foodPreference: 'Pescetarian food · early dinner', interests: interests({ food: 5, photography: 4, shopping: 4, nature: 3 }) },
+  {
+    id: 't-admin',
+    name: 'Hema',
+    initials: 'HE',
+    phone: '+14152220000',
+    budgetPreference: 'balanced',
+    activityLevel: 3,
+    pacePreference: 'balanced',
+    foodPreference: 'Pescetarian-friendly meals · early dinner',
+    interests: interests({ food: 5, culture: 5, history: 5, photography: 3, nightlife: 2 }),
+    status: 'preferences_ready',
+    preferences: {
+      priorities: ['Culture', 'History', 'Early dinner', 'Pescetarian-friendly', 'Balanced pace'],
+      summary: 'Hema prioritizes culture, history, an early shared dinner, pescetarian-friendly meals, and a balanced pace.',
+      recommendation: 'Protect the cultural itinerary and shared early dinner while keeping late-evening activities optional.',
+      matchPercentage: 74,
+      pace: 'balanced',
+      foodRequirements: ['Pescetarian-friendly meals'],
+      avoidances: ['late-evening activities'],
+    },
+  },
+  {
+    id: 't-sarah',
+    name: 'Sarah',
+    initials: 'SA',
+    phone: '+14150001111',
+    budgetPreference: 'balanced',
+    activityLevel: 3,
+    pacePreference: 'balanced',
+    foodPreference: 'Pescetarian-friendly meals · early dinner',
+    interests: interests({ food: 5, photography: 4, shopping: 3, history: 5, culture: 4, nightlife: 2 }),
+    status: 'preferences_ready',
+    preferences: {
+      priorities: ['Historic neighborhoods', 'Early dinner', 'Moderate walking', 'Pescetarian-friendly', 'Quiet evenings'],
+      summary: 'Sarah prefers historic neighborhoods, an early dinner, pescetarian-friendly meals, moderate walking, and quieter evenings.',
+      recommendation: 'Keep the shared dinner early, favor moderate walking, and make nightlife optional.',
+      matchPercentage: 84,
+      pace: 'balanced',
+      foodRequirements: ['Pescetarian-friendly meals'],
+      avoidances: ['nightlife', 'late evenings'],
+    },
+  },
 ];
 const DEFAULT_FRIEND = travelers[1];
 const defaultSarahPreference = (): PreferenceCollection => ({
   adminName: 'Hema', adminWeight: 1.5, source: 'mock', status: 'pending',
-  calls: [{ travelerId: 't-sarah', name: 'Sarah Siddharth', phone: '+14156290471', status: 'completed', happiness: 82, topPriorities: ['Early dinner', 'Moderate walking', 'Pescetarian food'], summary: 'Sarah prefers an early dinner, moderate walking, and pescetarian food.', compromise: 'Schedule a shared early dinner, then make any late-night activity optional.' }],
+  calls: [{ travelerId: 't-sarah', name: 'Sarah', phone: '+14150001111', status: 'completed', happiness: 84, topPriorities: ['Historic neighborhoods', 'Early dinner', 'Moderate walking', 'Pescetarian-friendly'], summary: 'Sarah prefers historic neighborhoods, an early dinner, pescetarian-friendly meals, moderate walking, and quieter evenings.', compromise: 'Keep the shared dinner early, favor moderate walking, and make nightlife optional.' }],
   negotiation: 'Sarah’s example preferences are ready for the group plan.',
   approvalSummary: 'Example preference profile loaded for Sarah.',
 });
@@ -230,7 +270,7 @@ export class DemoStore {
     if (legacyFriend) {
       Object.assign(legacyFriend, structuredClone(DEFAULT_FRIEND));
       const legacyAdmin = migrated.travelers.find((traveler) => traveler.id === 't-admin');
-      if (legacyAdmin?.name === 'Sarah Siddharth') {
+      if (legacyAdmin?.phone === '+14156290471' || legacyAdmin?.initials === 'PS') {
         legacyAdmin.name = DEFAULT_ADMIN.name;
         legacyAdmin.phone = DEFAULT_ADMIN.phone;
         legacyAdmin.initials = 'HE';
@@ -287,7 +327,7 @@ export class DemoStore {
     if (name.length < 2) throw new Error('Traveler name must contain at least two characters.');
     if (this.trip.travelers.some((traveler) => traveler.name.toLowerCase() === name.toLowerCase())) throw new Error('Traveler names must be unique.');
     const id = `t-${name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}-${Date.now().toString(36)}`;
-    this.trip.travelers.push({ id, name, phone: input.phone?.trim(), initials: name.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase(), budgetPreference: 'balanced', activityLevel: 3, pacePreference: 'balanced', foodPreference: 'No preference added', interests: interests({ culture: 3, food: 3, nature: 3 }) });
+    this.trip.travelers.push({ id, name, phone: input.phone?.trim(), initials: name.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase(), budgetPreference: 'balanced', activityLevel: 3, pacePreference: 'balanced', foodPreference: 'No preference added', interests: interests({ culture: 3, food: 3, nature: 3 }), status: 'ready_to_call' });
     this.afterTravelerChange(`${name} added to the trip`);
     return this.getTrip();
   }
@@ -297,7 +337,7 @@ export class DemoStore {
     if (!traveler) throw new Error('Traveler not found.');
     const name = input.name.trim();
     if (name.length < 2 || this.trip.travelers.some((item) => item.id !== id && item.name.toLowerCase() === name.toLowerCase())) throw new Error('Use a unique traveler name with at least two characters.');
-    Object.assign(traveler, { name, phone: input.phone?.trim(), initials: name.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase(), ...(input.budgetPreference ? { budgetPreference: input.budgetPreference } : {}), ...(input.activityLevel ? { activityLevel: input.activityLevel } : {}), ...(input.pacePreference ? { pacePreference: input.pacePreference } : {}), ...(input.foodPreference ? { foodPreference: input.foodPreference } : {}), ...(input.interests ? { interests: input.interests } : {}) });
+    Object.assign(traveler, { name, phone: input.phone?.trim(), initials: name.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase(), ...(input.budgetPreference ? { budgetPreference: input.budgetPreference } : {}), ...(input.activityLevel ? { activityLevel: input.activityLevel } : {}), ...(input.pacePreference ? { pacePreference: input.pacePreference } : {}), ...(input.foodPreference ? { foodPreference: input.foodPreference } : {}), ...(input.interests ? { interests: input.interests } : {}), status: traveler.status === 'calling' ? 'calling' : traveler.status ?? 'ready_to_call' });
     this.afterTravelerChange(`${name}'s traveler profile updated`);
     return this.getTrip();
   }
@@ -445,17 +485,22 @@ export class DemoStore {
 
     const mustDo = input.mustDo?.filter(Boolean) ?? [];
     const avoid = input.avoid?.filter(Boolean) ?? [];
+    // Some Vocal Bridge post-call payloads report `no-answer` even though the
+    // agent collected structured answers. Structured preferences are stronger
+    // evidence than that transport status, so preserve the completed result.
+    const hasCollectedPreferences = mustDo.length > 0 || avoid.length > 0 || Boolean(input.pace || input.food);
+    const effectiveOutcome = input.outcome === 'no-answer' && hasCollectedPreferences ? 'completed' as const : input.outcome;
     const priorities = [...mustDo, ...(input.food ? [input.food] : []), ...(input.pace ? [`${input.pace} pace`] : [])].slice(0, 4);
     Object.assign(call, {
-      status: input.outcome,
+      status: effectiveOutcome,
       summary: input.summary,
-      topPriorities: input.outcome === 'completed' ? priorities : [],
-      compromise: input.outcome === 'completed'
+      topPriorities: effectiveOutcome === 'completed' ? priorities : [],
+      compromise: effectiveOutcome === 'completed'
         ? `${mustDo.length ? `Protect ${mustDo[0]}. ` : ''}${avoid.length ? `Avoid ${avoid.join(' and ')}. ` : ''}JourneyOS will rebalance the group itinerary.`
-        : input.outcome === 'no-answer' ? 'No preferences were collected; keep this traveler’s plan fit neutral until they respond.' : 'No preferences were collected from this call.',
+        : effectiveOutcome === 'no-answer' ? 'No preferences were collected; keep this traveler’s plan fit neutral until they respond.' : 'No preferences were collected from this call.',
     });
 
-    if (input.outcome === 'completed') {
+    if (effectiveOutcome === 'completed') {
       const pace = /^(easy|slow|relaxed|unhurried)$/i.test(input.pace ?? '') ? 'easy' : /^(full|fast|packed|active)$/i.test(input.pace ?? '') ? 'full' : 'balanced';
       const preferenceText = `${mustDo.join(' ')} ${avoid.join(' ')} ${input.food ?? ''}`.toLowerCase();
       const nextInterests = { ...traveler.interests };
@@ -464,11 +509,27 @@ export class DemoStore {
       if (/museum|history|temple|culture|art/.test(preferenceText)) { nextInterests.culture = 5; nextInterests.history = Math.max(nextInterests.history, 4); }
       if (/photo|photography|view|scenic/.test(preferenceText)) nextInterests.photography = 5;
       if (/nature|hike|park|beach/.test(preferenceText)) nextInterests.nature = 5;
-      Object.assign(traveler, { pacePreference: pace, activityLevel: pace === 'easy' ? 2 : pace === 'full' ? 4 : 3, ...(input.food ? { foodPreference: input.food } : {}), interests: nextInterests });
+      Object.assign(traveler, {
+        pacePreference: pace,
+        activityLevel: pace === 'easy' ? 2 : pace === 'full' ? 4 : 3,
+        ...(input.food ? { foodPreference: input.food } : {}),
+        interests: nextInterests,
+        status: 'preferences_ready' as const,
+        preferences: {
+          priorities: priorities.length ? priorities : undefined,
+          foodRequirements: input.food ? [input.food] : undefined,
+          avoidances: avoid.length ? avoid : undefined,
+          pace,
+          summary: input.summary,
+          recommendation: call.compromise,
+          matchPercentage: call.happiness,
+        },
+      });
       this.afterTravelerChange(`${traveler.name}'s voice preferences were collected`);
     } else {
+      traveler.status = 'ready_to_call';
       this.recalculateHappiness();
-      this.trip.events.unshift({ id: `preference-call-${Date.now()}`, type: 'tired', title: `${traveler.name}'s preference call ${input.outcome}`, createdAt: new Date().toISOString(), explanation: input.summary });
+      this.trip.events.unshift({ id: `preference-call-${Date.now()}`, type: 'tired', title: `${traveler.name}'s preference call ${effectiveOutcome}`, createdAt: new Date().toISOString(), explanation: input.summary });
     }
 
     const completed = collection.calls.filter((item) => item.status === 'completed').length;
@@ -484,7 +545,7 @@ export class DemoStore {
     const admin = this.trip.travelers[0];
     const savedCalls = this.trip.preferenceCollection?.calls ?? [];
     // Keep the admin's live brief and the first friend's collected profile available
-    // before Friend 2 is called. The live caller is never treated as a known profile.
+    // before the live caller is called. The live caller is never treated as a known profile.
     const knownProfiles = [
       ...(admin ? [admin] : []),
       ...this.trip.travelers.filter((item) => item.id !== traveler.id && item.id !== admin?.id),
@@ -498,6 +559,7 @@ export class DemoStore {
     const currentFit = groupHappiness(this.trip.travelers, this.trip.itinerary, this.trip.request.duration);
     const beforeHappiness = currentFit.groupHappiness;
     const pendingConflict = `Waiting to hear ${traveler.name}'s live priority before detecting a conflict.`;
+    traveler.status = 'calling';
     this.trip.preferenceCollection = {
       adminName: admin?.name ?? 'Trip admin', adminWeight: 1.5, source, status: 'pending',
       calls: [
@@ -559,6 +621,18 @@ export class DemoStore {
     const currentFit = groupHappiness(this.trip.travelers, this.trip.itinerary, this.trip.request.duration);
     const beforeHappiness = currentFit.groupHappiness;
     const afterHappiness = Math.min(NEGOTIATION_POLICY.maximumFit, beforeHappiness + Math.max(NEGOTIATION_POLICY.minimumFitGain, Math.ceil(currentFit.fairnessGap / 2)));
+    traveler.status = input.accepted ? 'negotiation_complete' : 'admin_review_needed';
+    traveler.preferences = {
+      priorities: input.accepted ? generatedChanges.map((change) => change.title) : [spokenPreference],
+      summary: input.accepted
+        ? `${traveler.name} accepted the proposed trade with ${agreement.counterpartName}.`
+        : `${traveler.name} declined the proposed trade and needs admin review.`,
+      recommendation: input.accepted
+        ? 'Negotiation complete; admin approval still required.'
+        : 'Admin review needed to resolve the competing priorities.',
+      pace: /easy|slow|relaxed|unhurried/i.test(spokenPreference) ? 'easy' : /fast|packed|active|full/i.test(spokenPreference) ? 'active' : 'balanced',
+      matchPercentage: input.accepted ? agreement.afterHappiness : agreement.beforeHappiness,
+    };
     agreement.counterpartId = counterpart.id;
     agreement.counterpartName = counterpart.name;
     agreement.conflict = input.conflict?.trim() || (dallasDinnerTrade
@@ -584,8 +658,21 @@ export class DemoStore {
       { speaker: 'traveler' as const, text: input.travelerResponse },
       { speaker: 'agent' as const, text: input.accepted ? `Perfect. I found a compromise that protects both your priority and ${agreement.counterpartName}'s constraint. I'll send it to ${collection.adminName} for review.` : `Understood. I won't change the itinerary; ${collection.adminName} can review another option.` },
     ];
+    const travelerStatus = input.accepted ? 'negotiation_complete' : 'admin_review_needed';
     Object.assign(call, { status: 'completed' as const, summary: input.accepted ? `${agreement.travelerName} accepted the proposed trade with ${agreement.counterpartName}.` : `${agreement.travelerName} declined the proposed trade.`, compromise: input.accepted ? agreement.proposal : 'No agreement yet.', happiness: input.accepted ? agreement.afterHappiness : agreement.beforeHappiness, dialogue });
     Object.assign(agreement, { accepted: input.accepted, status: input.accepted ? 'accepted' as const : 'declined' as const, travelerResponse: input.travelerResponse, dialogue });
+    if (traveler) traveler.status = travelerStatus;
+    if (traveler) traveler.preferences = {
+      priorities: input.accepted ? agreement.agreedChanges.slice(0, 5) : [input.statedPreference ?? input.travelerResponse],
+      summary: input.accepted
+        ? `${agreement.travelerName} accepted the trade: ${agreement.proposal}`
+        : `${agreement.travelerName} needs admin review after declining the proposal.`,
+      recommendation: input.accepted
+        ? 'Negotiation complete; admin approval still required before itinerary changes.'
+        : 'Admin review needed to compare the competing priorities.',
+      pace: /easy|slow|relaxed|unhurried/i.test(input.statedPreference ?? input.travelerResponse) ? 'easy' : /fast|packed|active|full/i.test(input.statedPreference ?? input.travelerResponse) ? 'active' : 'balanced',
+      matchPercentage: input.accepted ? agreement.afterHappiness : agreement.beforeHappiness,
+    };
     collection.approvalSummary = input.accepted ? `Conflict resolved. Group plan fit rises from ${agreement.beforeHappiness}% to ${agreement.afterHappiness}% after admin approval.` : 'The traveler declined this proposal; no itinerary change was made.';
     const currentGap = this.trip.groupPreference.fairnessGap ?? 0;
     Object.assign(this.trip.groupPreference, { groupHappiness: input.accepted ? agreement.afterHappiness : agreement.beforeHappiness, averageHappiness: input.accepted ? agreement.afterHappiness : agreement.beforeHappiness, fairnessGap: input.accepted ? Math.max(0, currentGap - (agreement.afterHappiness - agreement.beforeHappiness)) : currentGap, fairnessPenalty: 0, explanation: input.accepted ? agreement.proposal : agreement.conflict });
@@ -671,8 +758,18 @@ export class DemoStore {
     const maya = this.trip.travelers.find((traveler) => traveler.name === 'Sarah') ?? this.trip.travelers[1];
     if (!maya) throw new Error('Add a traveler before starting the preference interview.');
     Object.assign(maya, {
-      name: 'Sarah', initials: 'PR', pacePreference: 'balanced' as const, foodPreference: 'Street food',
-      interests: interests({ culture: 1, history: 1, food: 5, photography: 3, shopping: 5, nightlife: 3, nature: 2 }),
+      name: 'Sarah', initials: 'SA', pacePreference: 'balanced' as const, foodPreference: 'Pescetarian-friendly meals',
+      interests: interests({ culture: 4, history: 5, food: 5, photography: 4, shopping: 3, nightlife: 2, nature: 2 }),
+      status: 'preferences_ready',
+      preferences: {
+        priorities: ['Historic neighborhoods', 'Early dinner', 'Moderate walking', 'Pescetarian-friendly', 'Quiet evenings'],
+        summary: 'Sarah prefers historic neighborhoods, an early dinner, pescetarian-friendly meals, moderate walking, and quieter evenings.',
+        recommendation: 'Keep the shared dinner early, favor moderate walking, and make nightlife optional.',
+        matchPercentage: 84,
+        pace: 'balanced',
+        foodRequirements: ['Pescetarian-friendly meals'],
+        avoidances: ['nightlife', 'late evenings'],
+      },
     });
     const shrine = this.trip.itinerary.find((item) => item.id === 'i-meiji');
     if (shrine) Object.assign(shrine, { time: '11:00', title: 'Meiji Shrine · later start', status: 'moved' as const });
@@ -989,7 +1086,7 @@ export class DemoStore {
       const key = (value ?? '').trim().toLowerCase();
       const known: Record<string, string> = {
         'san francisco': 'SFO', 'new york': 'JFK', nyc: 'JFK', 'los angeles': 'LAX', chicago: 'ORD', seattle: 'SEA', boston: 'BOS', miami: 'MIA', dallas: 'DFW', 'san diego': 'SAN',
-        hawaii: 'HNL', honolulu: 'HNL', maui: 'OGG', yellowstone: 'BZN', 'lake tahoe': 'RNO', tahoe: 'RNO',
+        hawaii: 'HON', honolulu: 'HNL', maui: 'OGG', yellowstone: 'BZN', 'lake tahoe': 'RNO', tahoe: 'RNO',
         london: 'LHR', paris: 'CDG', rome: 'FCO', milan: 'MXP', barcelona: 'BCN', madrid: 'MAD', lisbon: 'LIS', amsterdam: 'AMS', berlin: 'BER', zurich: 'ZRH', vienna: 'VIE', istanbul: 'IST', athens: 'ATH',
         tokyo: 'NRT', japan: 'NRT', osaka: 'KIX', kyoto: 'KIX', seoul: 'ICN', beijing: 'PEK', shanghai: 'PVG', 'hong kong': 'HKG', singapore: 'SIN', bangkok: 'BKK', bali: 'DPS', phuket: 'HKT', sydney: 'SYD', auckland: 'AKL',
         delhi: 'DEL', mumbai: 'BOM', bangalore: 'BLR', bengaluru: 'BLR', chennai: 'MAA', hyderabad: 'HYD', kolkata: 'CCU', pune: 'PNQ', kochi: 'COK', ahmedabad: 'AMD', goa: 'GOI', india: 'DEL',
