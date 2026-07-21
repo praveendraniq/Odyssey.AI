@@ -2,6 +2,14 @@
 
 Odyssey.AI is a mock-first hackathon MVP for planning, booking, managing, and dynamically re-optimizing a group trip in one conversational flow.
 
+## Code repository
+
+Source code: [github.com/praveendraniq/journeyOS](https://github.com/praveendraniq/journeyOS)
+
+### How Codex and GPT-5.6 were used
+
+OpenAI Codex, powered by GPT-5.6, was used as the engineering copilot throughout the project. It helped design the multi-agent travel architecture, implement and debug the React/TypeScript client and Express/TypeScript API, integrate Vocal Bridge, Sabre, Google Maps/Weather, PayPal Sandbox, and route optimization, resolve merge conflicts, add regression coverage, and verify production/demo build flows. GPT-5.6 also helped refine the voice-agent prompts, negotiation rules, safety boundaries, and fallback behavior used by Odyssey.AI.
+
 ## What is included
 
 - Voice-style trip planner with structured preference extraction
@@ -32,6 +40,20 @@ Open `http://localhost:5173`. The API is at `http://localhost:8787`.
 pnpm build
 pnpm lint
 ```
+
+## Fastest public demo deploy
+
+JourneyOS now supports a single Render web service that serves both the built React frontend and the Express API from one public URL.
+
+1. Push the repo to GitHub.
+2. Create a new Render Web Service from the repo or import `render.yaml`.
+3. Keep the defaults, or use:
+   - Build command: `npm install && npm run build`
+   - Start command: `npm start`
+4. Add any live integration secrets in Render's Environment settings.
+5. Open the Render URL and share that with judges.
+
+The frontend is served by Express from `client/dist` after the client build completes, so there is no separate frontend host to configure for the demo.
 
 ## Demo sequence
 
