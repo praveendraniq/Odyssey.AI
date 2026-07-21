@@ -99,17 +99,23 @@ export class VocalBridgeService {
       ?? conversation.trim().match(/^([a-z][a-z '.-]*?)\s+(?:to|into)\s+([a-z][a-z '.-]*?)(?=\s+(?:for|on|under|with|during|leaving|departing|return(?:ing)?|and)\b|[,.]|$)/i);
     const routeOrigin = routeMatch?.[1]?.trim();
     const routeDestination = routeMatch?.[2]?.trim();
-    const structuredDestination = conversation.match(/\bto\s+([a-z][a-z '.-]*?)(?=,?\s+(?:departing|leaving|between|on|from)\b|[,.]|$)/i)?.[1]?.trim();
-    const structuredOrigin = conversation.match(/(?:departing|leaving)\s+from\s+([a-z][a-z '.-]*?)(?=\s+(?:between|on|for|with|under)\b|[,.]|$)/i)?.[1]?.trim();
-    const destinationMatch = value.match(/(?:trip|travel(?:ing)?|going|fly(?:ing)?|heading)\s+to\s+([a-z][a-z '-]+?)(?:\s+(?:for|under|with|from|during|and|this|next|on|leaving|departing)\b|[.,]|$)|(?:visit(?:ing)?|destination is)\s+([a-z][a-z '-]+?)(?:\s+(?:for|under|with|from|during|and|this|next|on)\b|[.,]|$)/i)?.slice(1).find(Boolean)?.trim();
+    // Spoken transcripts often omit punctuation, so stop city extraction at
+    // the next planning field (budget, date, food, greeting, etc.). This
+    // prevents phrases such as “San Francisco with a four-thousand-dollar
+    // budget” or “October sixteenth hi” from becoming city names.
+    const fieldBoundary = String.raw`(?:for|under|with|from|during|and|this|next|on|leaving|departing|between|return(?:ing)?|back|budget|food|pace|interest|traveler|people|january|february|march|april|may|june|july|august|september|october|november|december|hi|hello)\b`;
+    const structuredDestination = conversation.match(new RegExp(String.raw`\bto\s+([a-z][a-z '.-]*?)(?=\s+${fieldBoundary}|[,.]|$)`, 'i'))?.[1]?.trim();
+    const structuredOrigin = conversation.match(new RegExp(String.raw`(?:departing|leaving)\s+from\s+([a-z][a-z '.-]*?)(?=\s+${fieldBoundary}|[,.]|$)`, 'i'))?.[1]?.trim();
+    const destinationMatch = value.match(new RegExp(String.raw`(?:trip|travel(?:ing)?|going|fly(?:ing)?|heading)\s+to\s+([a-z][a-z '-]+?)(?:\s+${fieldBoundary}|[.,]|$)|(?:visit(?:ing)?|destination is)\s+([a-z][a-z '-]+?)(?:\s+${fieldBoundary}|[.,]|$)`, 'i'))?.slice(1).find(Boolean)?.trim();
     const knownDestination = ['chennai', 'china', 'japan', 'kyoto', 'tokyo', 'bali', 'thailand', 'bangkok', 'paris', 'france', 'italy', 'rome', 'spain', 'london', 'greece', 'mexico', 'india', 'singapore', 'australia', 'new zealand'].find((place) => new RegExp(`\\b${place}\\b`, 'i').test(value));
     const destinationPhrase = value.match(/(?:plan|book|create|make)\s+(?:me\s+)?(?:a\s+)?(?:trip\s+)?(?:to\s+)?([a-z][a-z '-]+?)(?=\s+(?:for|under|with|from|during|and|this|next|on|leaving|departing)\b|[.,]|$)/i)?.[1]?.trim();
     const bareDestination = /^[a-z][a-z '-]{1,30}$/i.test(conversation.trim()) ? conversation.trim() : undefined;
     // Prefer a recognized destination over a broad phrase such as "things to do in Tokyo".
     const destinationLooksLikePreference = !destinationMatch || destinationMatch.length > 40 || /\b(see|place|young|people|traveler|vegetarian|budget|prefer|want|like|pace|food|activity|possible)\b/i.test(destinationMatch);
     const destination = routeDestination ?? structuredDestination ?? knownDestination ?? (destinationLooksLikePreference ? destinationPhrase ?? bareDestination : destinationMatch);
-    if (destination) request.destination = destination.replace(/\b\w/g, (letter) => letter.toUpperCase());
-    const originMatch = value.match(/(?:from|leaving|departing from)\s+([a-z][a-z '-]+?)(?=\s+(?:to|on|for|departing|leaving)\b|[,.]|$)/i)?.[1]?.trim();
+    const destinationIsDateOrGreeting = Boolean(destination && /^(?:january|february|march|april|may|june|july|august|september|october|november|december)\b|\b(?:today|tomorrow|yesterday|hi|hello)\b/i.test(destination));
+    if (destination && !destinationIsDateOrGreeting) request.destination = destination.replace(/\b\w/g, (letter) => letter.toUpperCase());
+    const originMatch = value.match(new RegExp(String.raw`(?:from|leaving|departing from)\s+([a-z][a-z '-]+?)(?=\s+(?:to|${fieldBoundary})|[,.]|$)`, 'i'))?.[1]?.trim();
     const origin = routeOrigin ?? structuredOrigin ?? originMatch;
     if (origin) request.origin = origin.replace(/\b\w/g, (letter) => letter.toUpperCase());
     const departing = value.match(/(?:depart(?:ing|ure)?|leave|leaving|start(?:ing)?)\s*(?:on)?\s*([^,.]+?)(?=\s+(?:and\s+)?(?:return|coming back|back on|until)\b|[,.]|$)/i)?.[1];

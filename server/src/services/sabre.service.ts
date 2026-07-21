@@ -29,7 +29,10 @@ export class SabreService {
   }
 
   async accessToken(): Promise<string> {
-    if (config.sabre.accessToken) return config.sabre.accessToken;
+    // Prefer a freshly minted CERT token when client credentials are present.
+    // A pasted SABRE_ACCESS_TOKEN is commonly expired by the time the demo is
+    // rehearsed; use it only when no OAuth credentials are configured.
+    if (config.sabre.accessToken && !this.hasCredentials()) return config.sabre.accessToken;
     if (this.cachedToken && this.cachedToken.expiresAt > Date.now() + 30_000) return this.cachedToken.value;
     if (!this.hasCredentials()) throw new Error('Sabre CERT credentials are not configured on the server.');
     const authorization = config.sabre.authVersion === 'v2'

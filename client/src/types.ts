@@ -3,7 +3,9 @@ export type ItemCategory = 'stay' | 'culture' | 'food' | 'transport' | 'nature' 
 export type ReplanType = 'late' | 'rain' | 'flight-delay' | 'closed' | 'tired';
 
 export interface TripRequest { origin?: string; destination: string; departureDate?: string; returnDate?: string; duration: number; travelers: number; budget: number; travelStyle: string; foodPreferences: string[]; interests: Interest[]; }
-export interface Traveler { id: string; name: string; initials: string; budgetPreference: string; activityLevel: number; pacePreference: string; foodPreference: string; interests: Record<Interest, number>; phone?: string; }
+export type TravelerStatus = 'pending' | 'ready_to_call' | 'calling' | 'preferences_ready' | 'negotiation_complete' | 'admin_review_needed';
+export interface TravelerPreferences { priorities?: string[]; experience?: string; foodRequirements?: string[]; avoidances?: string[]; pace?: 'easy' | 'balanced' | 'active'; summary?: string; recommendation?: string; matchPercentage?: number; }
+export interface Traveler { id: string; name: string; initials: string; budgetPreference: string; activityLevel: number; pacePreference: string; foodPreference: string; interests: Record<Interest, number>; phone?: string; status?: TravelerStatus; preferences?: TravelerPreferences; }
 export interface GroupPreference { interestScores: Record<Interest, number>; recommendedPace: string; explanation: string; groupHappiness?: number; averageHappiness?: number; fairnessPenalty?: number; fairnessGap?: number; }
 export interface HappinessBreakdown { interestMatch: number; paceMatch: number; constraintMatch: number; compromiseCoverage: number; }
 export interface PreferenceCall { travelerId: string; name: string; phone: string; status: 'completed' | 'queued' | 'dialing' | 'connected' | 'failed' | 'no-answer' | 'canceled'; summary: string; happiness: number; topPriorities: string[]; compromise: string; happinessBreakdown?: HappinessBreakdown; happinessExplanation?: string; dialogue?: Array<{ speaker: 'agent' | 'traveler'; text: string }>; }

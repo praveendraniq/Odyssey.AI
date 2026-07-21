@@ -100,7 +100,12 @@ export class SabreMcpService {
       body: JSON.stringify({ jsonrpc: '2.0', id: ++this.requestId, method, params }),
     });
     const body = await response.json().catch(() => ({})) as JsonRpcResponse;
-    if (!response.ok || body.error) throw new Error(body.error?.message ?? `Sabre MCP returned ${response.status}`);
+    if (!response.ok || body.error) {
+      if (response.status === 401) {
+        throw new Error('Sabre MCP authentication failed (401). Refresh SABRE_ACCESS_TOKEN with a current OAuth 2.0 CERT token and restart the server. The MCP URL and PCC can remain unchanged.');
+      }
+      throw new Error(body.error?.message ?? `Sabre MCP returned ${response.status}`);
+    }
     return body;
   }
 
